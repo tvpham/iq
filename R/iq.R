@@ -33,8 +33,9 @@ preprocess <- function(quant_table,
                     quant = log2(quant_table[, intensity_col]),
                     id = second_id)
 
-    proteins <- levels(d$protein_list)
-    samples <- levels(d$sample_list)
+    d <- d[complete.cases(d),] # remove NaN quant
+
+    samples <- unique(d$sample_list)
 
     # intensity cut off
     if (!is.null(log2_intensity_cutoff)) {
@@ -58,7 +59,7 @@ preprocess <- function(quant_table,
         }
 
         boxplot(dl,
-                names = samples,
+                names = as.character(samples),
                 col = "steelblue",
                 whisklty = 1,
                 staplelty = 0,
@@ -73,8 +74,10 @@ preprocess <- function(quant_table,
         f <- mean(m) - m
 
         # normalization
-        names(f) <- samples
-        d$quant <- d$quant + f[d$sample_list]
+        for (i in 1:length(samples)) {
+            idx <- d$sample_list == samples[i]
+            d$quant[idx] <- d$quant[idx] + f[i]
+        }
 
         if (!is.null(pdf_out)) {
             message("Barplotting after normalization ...\n")
@@ -87,7 +90,7 @@ preprocess <- function(quant_table,
             }
 
             boxplot(dl,
-                    names = samples,
+                    names = as.character(samples),
                     col = "steelblue",
                     whisklty = 1,
                     staplelty = 0,
@@ -106,8 +109,8 @@ preprocess <- function(quant_table,
 
 create_protein_list <- function(preprocessed_data) {
 
-    proteins <- levels(preprocessed_data$protein_list)
-    samples <- levels(preprocessed_data$sample_list)
+    proteins <- unique(preprocessed_data$protein_list)
+    samples <- unique(preprocessed_data$sample_list)
 
     p_list <- list()
 
@@ -134,7 +137,7 @@ create_protein_list <- function(preprocessed_data) {
                     stop("Error: duplicate entry.\n")
                 }
             }
-            p_list[[proteins[i]]] <- m
+            p_list[[as.character(proteins[i])]] <- m
         }
     }
 

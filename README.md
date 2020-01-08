@@ -1,5 +1,6 @@
 # iq
-An R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics
+An R package  for protein quantification in mass spectrometry-based proteomics
+
 
 ## Installation
 
