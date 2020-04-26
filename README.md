@@ -3,7 +3,7 @@ An R package  for protein quantification in mass spectrometry-based proteomics
 
 **Citation**
 
-TV Pham, AA Henneman, CR Jimenez. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, _Bioinformatics_ 2020 Apr 15;36(8):2611-2613.
+Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, _Bioinformatics_ 2020 Apr 15;36(8):2611-2613.
 
 ## Installation
 
