@@ -18,6 +18,9 @@ A list of two components is returned
 \item{annotation}{Reserved, currently an empty string}
 }
 \references{
+Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
+abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
+
 Tukey JW. \emph{Exploratory Data Analysis}, Reading Massachusetts: Addison-Wesley,
 1977.
 }

@@ -1,0 +1,11 @@
+
+bibentry(bibtype = "Article",
+         title = "{iq}: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics",
+         author = " TV Pham, AA Henneman, CR Jimenez",
+         journal = "Bioinformatics",
+         volume = "36",
+         number = "8",
+         pages = "2611-2613",
+         year = "2020",
+         url = "https://doi.org/10.1093/bioinformatics/btz961")
+

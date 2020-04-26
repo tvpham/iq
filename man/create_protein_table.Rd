@@ -27,6 +27,10 @@ protein_list <- iq::create_protein_list(norm_data)
 result <- iq::create_protein_table(protein_list)
 head(result)
 }
+\references{
+Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
+abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
+}
 \author{
 Thang V. Pham
 }

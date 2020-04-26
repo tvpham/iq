@@ -20,9 +20,13 @@ A list where each element contains the quantitative data of a protein. The colum
 data("spikeins")
 head(spikeins)
 # This example set of spike-in proteins has been 'median-normalized'.
-norm_data <- iq::preprocess(spikeins, median_normalization = FALSE)
+norm_data <- iq::preprocess(spikeins, median_normalization = FALSE, pdf_out = NULL)
 protein_list <- iq::create_protein_list(norm_data)
 }
+}
+\references{
+Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
+abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
 }
 \author{
 Thang V. Pham

@@ -21,10 +21,15 @@ A table of proteins and associated annotation extracted from the input.
 }
 \examples{
 \donttest{
-extra_names <- iq::extract_annotation(rownames(result$estimate),
+data("spikeins")
+extra_names <- iq::extract_annotation(levels(spikeins$PG.ProteinGroups),
                                       spikeins,
                                       annotation_columns = c("PG.Genes", "PG.ProteinNames"))
 }
+}
+\references{
+Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
+abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
 }
 \author{
 Thang V. Pham

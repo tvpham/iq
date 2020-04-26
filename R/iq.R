@@ -9,10 +9,12 @@ preprocess <- function(quant_table,
                        intensity_col = "F.PeakArea",
                        median_normalization = TRUE,
                        log2_intensity_cutoff = 0,
-                       pdf_out = "qc-plots.pdf") {
+                       pdf_out = "qc-plots.pdf",
+                       pdf_width = 12,
+                       pdf_height = 8) {
 
     if (!is.null(pdf_out)) {
-        pdf(pdf_out, width = 12, height = 8)
+        pdf(pdf_out, pdf_width, pdf_height)
     }
 
     if (class(quant_table[, intensity_col]) != "numeric") {
@@ -49,14 +51,15 @@ preprocess <- function(quant_table,
         d <- d[d$quant > log2_intensity_cutoff,]
     }
 
+    dl <- list()
+    m <- rep(NA, length(samples))
+    for (i in 1:length(samples)) {
+        dl[i] <- list(d[d$sample_list == samples[i], "quant"])
+        m[i] <- median(dl[[i]], na.rm = TRUE)
+    }
+
     if (!is.null(pdf_out)) {
         message("Barplotting raw data ...\n")
-        dl <- list()
-        m <- rep(NA, length(samples))
-        for (i in 1:length(samples)) {
-            dl[i] <- list(d[d$sample_list == samples[i], "quant"])
-            m[i] <- median(dl[[i]], na.rm = TRUE)
-        }
 
         boxplot(dl,
                 names = as.character(samples),
@@ -133,7 +136,7 @@ create_protein_list <- function(preprocessed_data) {
                 if (is.na(m[char_r[j], char_c[j]])) {
                     m[char_r[j], char_c[j]] <- tmp[j, "quant"]
                 } else {
-                    message(j, ": sample", char_c[j], "; id", char_r[j], "not unique.\n")
+                    message(j, " : sample ", char_c[j], "; id ", char_r[j], " not unique.\n")
                     stop("Error: duplicate entry.\n")
                 }
             }

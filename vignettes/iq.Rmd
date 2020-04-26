@@ -6,7 +6,7 @@ output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics}
   %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+  %VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
@@ -42,6 +42,9 @@ library("iq")
 
 This vignette presents three examples for raw data processing pipelines: Spectronaut (Bruderer et al., MCP 2015), OpenSWATH (Rost et al., Nat. Biotechnol. 2014), and MaxQuant (Cox & Mann, Nat. Biotechnol. 2008). The example data are available in the project GitHub release. To keep the file size manageable, we exclude data columns not necessary for the analysis, followed by gzip compression. The user may download the data to a local working folder to run the examples.
 
++ Spectronaut: [Bruderer15-DIA-longformat-compact.txt.gz](https://github.com/tvpham/iq/releases/download/v1.1/Bruderer15-DIA-longformat-compact.txt.gz)
++ OpenSWATH: [Schubert15-OpenSWATH.txt.gz](https://github.com/tvpham/iq/releases/download/v1.1/Schubert15-OpenSWATH.txt.gz)
++ MaxQuant: [evidence.txt.gz](https://github.com/tvpham/iq/releases/download/v1.1/evidence.txt.gz) and [proteinGroups.txt.gz](https://github.com/tvpham/iq/releases/download/v1.1/proteinGroups.txt.gz)
 
 ## Spectronaut output
 
@@ -67,6 +70,12 @@ raw <- raw[selected, c("R.Condition","PG.ProteinGroups", "EG.ModifiedSequence", 
 write.table(raw, "Bruderer15-DIA-longformat-compact.txt", sep = "\t", row.names = FALSE)
 ```
 
+Note that if the quantification filtering option is selected when exporting the report from Spectronaut, the software already filters out entries with high protein q-values and peptide q-values. We can check that by
+```{r, eval=FALSE, include = TRUE}
+all(raw$PG.Qvalue <= 0.01)
+all(raw$EG.Qvalue <= 0.01)
+```
+
 We write the content of `raw` to a text file and gzip it to keep the file size manageable. In the following, we will continue with the compressed file  _Bruderer15-DIA-longformat-compact.txt.gz_. Note that the user does not need to write the data to disk and read it back like in this example when processing their own data.
 
 ```{r, eval=local_file_exist, include=TRUE}
@@ -89,6 +98,8 @@ hist(log2(raw[, "F.PeakArea"]), 100, main = "Histogram of log2 intensities",
 ```
 
 Here the default threshold value of zero for `log2_intensity_cutoff` is appropriate as it removes the strange distribution of low-intensity data points on the left of the figure.
+
+The default value for `sample_id` is `"R.Condition"`. However, in practice we find it convenient to use `"R.FileName"` because one does not need to prepare the condition column in Spectronaut. The `secondary_id` parameter enforces the uniqueness of the peptide species for the MaxLFQ algorithm. For example, when multiple spectral libraries are used, it is possible that a fragment comes from two or more libraries. In that case, we can use `secondary_id = c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge")`. Note that one needs to export the necessary columns from Spectronaut.
 
 The second step `iq::create_protein_list` converts the long-format table to a list where each element contains the underlying data of each protein. The column names are sample names and row names fragment ions. The result can be used to visualized protein quantification for manual validation as in the next section.
 
@@ -269,6 +280,7 @@ We first perform median normalization on intensities in the _evidence.txt_ file.
 
 ```{r, eval=local_file_exist, include = TRUE}
 evidence <- read.delim(gzfile("evidence.txt.gz"), stringsAsFactors = FALSE)
+
 rownames(evidence) <- evidence[, "id"]
 
 # median normalization
@@ -286,14 +298,16 @@ evidence[, "Intensity"] <- evidence[, "Intensity"] * f[evidence[, "Experiment"]]
 p_list <- list()
 
 for (i in 1:nrow(dda)) {
+    
     tmp <- unlist(strsplit(as.character(dda[i, "Evidence.IDs"]), ";"))
     a <- evidence[tmp,]
     b <- data.frame(cn = a[, "Experiment"], 
                     rn = paste(a[, "Modified.sequence"], a[, "Charge"], sep="_"), 
                     quant = a[, "Intensity"])
     b <- b[!is.na(b$quant),]
-    m <- matrix(NA, nrow = nlevels(b$rn), ncol = length(ex), 
-                dimnames = list(levels(b$rn), ex))
+    
+    m <- matrix(NA, nrow = length(unique(b$rn)), ncol = length(ex), 
+                dimnames = list(unique(b$rn), ex))
   
     if (nrow(b) > 0) {
         for (j in 1:nrow(b)) {
@@ -373,6 +387,7 @@ acetaminophen-treated three-dimensional liver microtissues. _Mol Cell Proteomics
 1. Cox J, Hein MY, Luber CA, et al. (2014) Accurate proteome-wide label-free quantification
 by delayed normalization and maximal peptide ratio extraction, termed MaxLFQ. _Mol Cell Proteomics_ 13(9):2513–2526.
 1. Cox J and Mann M (2008) MaxQuant enables high peptide identification rates, individualized p.p.b.-range mass accuracies and proteome-wide protein quantification. _Nat Biotechnol_ 26, pp 1367-72.
+1. Pham TV, Henneman AA, Jimenez CR (2020) iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics. _Bioinformatics_ 36(8):2611-2613.
 1. Rost HL, Rosenberger G, Navarro P, et al. (2014). OpenSWATH enables automated, targeted analysis of data-independent acquisition MS data. Nat. Biotechnol. 32, 219–223.
 1. Schubert OT, Ludwig C, Kogadeeva M, et al. (2015) Absolute proteome composition and dynamics during dormancy and resuscitation of mycobacterium tuberculosis. _Cell Host Microbe_ 18(1):96-108.
 1. Tukey JW. (1977) _Exploratory Data Analysis_, Reading Massachusetts: Addison-Wesley.

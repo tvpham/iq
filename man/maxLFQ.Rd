@@ -21,6 +21,9 @@ A list of two components is returned
 Cox J, Hein MY, Luber CA, et al. Accurate proteome-wide label-free quantification
 by delayed normalization and maximal peptide ratio extraction, termed MaxLFQ.
 \emph{Mol Cell Proteomics}. 2014;13(9):2513–2526.
+
+Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
+abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
 }
 \author{
 Thang V. Pham
