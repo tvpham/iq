@@ -1,0 +1,219 @@
+---
+title: "Fast MaxLFQ"
+author: "Thang V Pham"
+date: "`r Sys.Date()`" 
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fast MaxLFQ}
+  %VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r eval=TRUE, include=FALSE, echo=FALSE}
+require("knitr")
+local_file_exist <- file.exists("DIA-report-long-format.txt")
+```
+
+We have implemented a highly optimized version of the **iq** pipeline (Pham et al., Bioinformatics 2020). To run the following examples, download [DIA-report-long-format.zip](https://github.com/tvpham/iq/releases/download/v1.1/DIA-report-long-format.zip) and unzip the file to a local working directory.
+
+The unzipped file `DIA-report-long-format.txt` is a tab-deliminated text file exported from a Spectronaut search using this export schema [iq.rs](https://github.com/tvpham/iq/releases/download/v1.1/iq.rs). The user might want to import this schema to their Spectronaut installation for the ease of using the **iq** pipeline.
+
+
+## The standard pipeline
+
+First, we apply the standard pipeline implemented in pure R. Read and filter the data
+
+```{r, eval = local_file_exist, include = TRUE}
+library("iq") # if not already installed, run install.packages("iq") 
+
+raw <- read.delim("DIA-Report-long-format.txt")
+
+selected <- raw$F.ExcludedFromQuantification == "False" & 
+            !is.na(raw$PG.Qvalue) & (raw$PG.Qvalue < 0.01) &
+            !is.na(raw$EG.Qvalue) & (raw$EG.Qvalue < 0.01)
+
+raw <- raw[selected,]
+```
+
+Normalize the data, create a protein list, and perform the MaxLFQ algorithm
+
+```{r eval = local_file_exist, echo=TRUE, message = TRUE, include = TRUE}
+sample_id  <- "R.FileName" 
+
+secondary_id <- c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType")
+
+norm_data <- iq::preprocess(raw, 
+                            sample_id  = sample_id, 
+                            secondary_id = secondary_id)
+
+protein_list <- iq::create_protein_list(norm_data)
+
+result <- iq::create_protein_table(protein_list)
+```
+
+Extract annotation columns and write the result to an output file
+
+```{r eval = local_file_exist}
+annotation_columns <- c("PG.Genes", "PG.ProteinNames")
+
+extra_names <- iq::extract_annotation(rownames(result$estimate), 
+                                      raw, 
+                                      annotation_columns = annotation_columns)
+
+write.table(cbind(Protein = rownames(result$estimate),
+                  extra_names[, annotation_columns],
+                  MaxLFQ_annotation = result$annotation,
+                  result$estimate),
+            "iq-MaxLFQ.txt", sep = "\t", row.names = FALSE)
+```
+
+The resulting file `iq-MaxLFQ.txt` is the protein level quantification report in a tab-deliminated text format.
+
+## A faster MaxLFQ implementation
+
+The function `iq::fast_MaxLFQ` implemented in C++ combines the functionalities of `iq::create_protein_list` and `iq::create_protein_table`.
+
+```{r eval = local_file_exist}
+#--------------------- Replacing ---------------------
+# protein_list <- iq::create_protein_list(norm_data) #
+# result <- iq::create_protein_table(protein_list)   #
+#-----------------------------------------------------
+
+result_faster <- iq::fast_MaxLFQ(norm_data)
+
+```
+
+The results of the R implementation `result` and C++ implementation `result_faster` should be equal up to the floating-point precision of the underlying numerical libraries.
+
+```{r eval = local_file_exist}
+cat("Max difference =", max(abs(result_faster$estimate - result$estimate), na.rm = TRUE), "\n")
+
+cat("Identical NAs =", identical(is.na(result_faster$estimate), is.na(result$estimate)), "\n")
+
+cat("Equal annotation =", identical(result_faster$annotation, result$annotation), "\n")
+```
+
+### Benchmarking execution time
+
+We can check the improvement in execution time. The following result is obtained on a computer with 12 CPU cores.
+
+```{r eval=local_file_exist}
+system.time({
+    protein_list <- iq::create_protein_list(norm_data)
+    result <- iq::create_protein_table(protein_list)
+})
+
+system.time({
+    result_faster <- iq::fast_MaxLFQ(norm_data)
+})
+```
+
+## An efficient data structure and data loading
+
+We have implemented a fast data loading algorithm and an efficient data structure. The memory usage is highly optimized to enable the processing of very large datasets.
+
+```{r eval=local_file_exist}
+sample_id  <- "R.FileName" 
+
+secondary_id <- c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType")
+
+annotation_columns <- c("PG.Genes", "PG.ProteinNames")
+
+iq_dat <- iq::fast_read("DIA-report-long-format.txt",
+                        sample_id  = sample_id, 
+                        secondary_id = secondary_id,
+                        filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
+                        annotation_col = annotation_columns)
+
+iq_norm_data <- iq::fast_preprocess(iq_dat$quant_table)
+
+result_fastest <- iq::fast_MaxLFQ(iq_norm_data, 
+                                  row_names = iq_dat$protein[, 1], 
+                                  col_names = iq_dat$sample)
+```
+
+The result of the optimized pipeline `result_fastest` should be the same as that of the standard pipeline `result`.
+
+```{r eval = local_file_exist}
+cat("Max difference =", max(abs(result_fastest$estimate - result$estimate), na.rm = TRUE), "\n")
+
+cat("Identical NAs =", identical(is.na(result_fastest$estimate), is.na(result$estimate)), "\n")
+
+cat("Equal annotation =", identical(result_fastest$annotation, result$annotation), "\n")
+```
+
+The annotation columns are stored in the `protein` component of the input data structure `iq_dat`. We can extract the annotation columns and write the result to an output text file.
+
+```{r eval = local_file_exist}
+iq_extra_names <- iq::extract_annotation(rownames(result_fastest$estimate), 
+                                         iq_dat$protein, 
+                                         annotation_columns = annotation_columns)
+
+write.table(cbind(Protein = rownames(result_fastest$estimate),
+                  iq_extra_names[, annotation_columns],
+                  MaxLFQ_annotation = result_fastest$annotation,
+                  result_fastest$estimate), 
+            "iq-MaxLFQ-fast.txt", sep = "\t", row.names = FALSE)
+```
+
+### Benchmarking execution time
+
+```{r eval = local_file_exist}
+sample_id  <- "R.FileName" 
+
+secondary_id <- c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType")
+
+annotation_columns <- c("PG.Genes", "PG.ProteinNames")
+
+system.time({
+    
+    # reading data
+    raw <- read.delim("DIA-report-long-format.txt")
+
+    # filtering
+    selected <- raw$F.ExcludedFromQuantification == "False" & 
+                !is.na(raw$PG.Qvalue) & raw$PG.Qvalue < 0.01 &
+                !is.na(raw$EG.Qvalue) & raw$EG.Qvalue < 0.01
+
+    raw <- raw[selected,]
+
+    ## process
+
+    norm_data <- iq::preprocess(raw, 
+                                sample_id  = sample_id, 
+                                secondary_id = secondary_id)
+
+    protein_list <- iq::create_protein_list(norm_data)
+    
+    result <- iq::create_protein_table(protein_list)
+    
+})
+
+system.time({
+    iq_dat <- iq::fast_read("DIA-report-long-format.txt",
+                            sample_id  = sample_id, 
+                            secondary_id = secondary_id,
+                            filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
+                            annotation_col = annotation_columns)
+
+    iq_norm_data <- iq::fast_preprocess(iq_dat$quant_table)
+
+    result_fastest <- iq::fast_MaxLFQ(iq_norm_data, 
+                                      row_names = iq_dat$protein[, 1], 
+                                      col_names = iq_dat$sample)
+})
+```
+
+
+## References
+
+1. Pham TV, Henneman AA, Jimenez CR (2020) iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics. _Bioinformatics_ 36(8):2611-2613.

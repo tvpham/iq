@@ -1,3 +1,7 @@
+## Ver 1.5
+
+- Speedup with C++ implementation
+
 ## Ver 1.4
 
 - Add references.

@@ -28,7 +28,7 @@ A long-format table with a primary column of protein identification, secondary c
 \item{intensity_col}{The column for intensities.}
 \item{median_normalization}{A logical value. The default \code{TRUE} value is to perform median normalization.}
 \item{log2_intensity_cutoff}{Entries lower than this value in log2 space are ignored. Plot a histogram of all intensities to set this parameter.}
-\item{pdf_out}{A character string specifying the name of the PDF output. A NULL value will suppress the PDF output.}
+\item{pdf_out}{A character string specifying the name of the PDF output. A \code{NULL} value will suppress the PDF output.}
 \item{pdf_width}{Width of the pdf output in inches.}
 \item{pdf_height}{Height of the pdf output in inches.}
 }

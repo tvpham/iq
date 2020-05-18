@@ -117,9 +117,16 @@ create_protein_list <- function(preprocessed_data) {
 
     p_list <- list()
 
+    message("# proteins = ", length(proteins), ", # samples = ", length(samples))
+
+    thres_display <- length(proteins) / 20
+
     for (i in 1:length(proteins)) {
 
-        message(i, "/", length(proteins), "\n")
+        if (i > thres_display) {
+            message(format(i * 100 / length(proteins), digits = 2), "%")
+            thres_display <- i + length(proteins) / 20
+        }
 
         tmp <- preprocessed_data[preprocessed_data$protein_list == proteins[i],]
 
@@ -343,9 +350,15 @@ create_protein_table <- function(protein_list, method = "maxLFQ", ...) {
 
     annotation <- rep(NA, length(protein_list))
 
+    thres_display <- nrow(tab) / 20
+
     for (i in 1:nrow(tab)) {
 
-        message(i, "/", nrow(tab), "\n")
+        if (i > thres_display) {
+            message(format(i * 100 / nrow(tab), digits = 2), "%")
+            thres_display <- i + nrow(tab) / 20
+        }
+
 
         if (method == "maxLFQ") {
             out <- maxLFQ(protein_list[[i]], ...)
