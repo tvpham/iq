@@ -1,3 +1,11 @@
+## Ver 1.7
+
+- Remove the R_ToplevelExec declaration to fix a compilation problem on Solaris.
+
+## Ver 1.6
+
+- Use _OPENMP to safeguard against MacOS lack of OpenMP support.
+
 ## Ver 1.5
 
 - Speedup with C++ implementation

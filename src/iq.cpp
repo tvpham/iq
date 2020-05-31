@@ -11,7 +11,7 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 1.5
+Software version: 1.7
 
 This software uses the Eigen library 3.3.7 under MPL2.
 
@@ -35,7 +35,9 @@ This software uses the Eigen library 3.3.7 under MPL2.
 #include <R_ext/Utils.h>
 #include <Rinternals.h>
 
-#include <omp.h>
+#ifdef _OPENMP
+    #include <omp.h>
+#endif
 
 extern "C" SEXP iq_filter(SEXP);
 extern "C" SEXP iq_MaxLFQ(SEXP);
@@ -53,45 +55,45 @@ class utils {
 public:
 
     // count the number of unique values in a large INT array
-	static int count_unique(int *vec, size_t nrow) {
-    	int *m = std::max_element(vec, vec + nrow);
-    	auto tmp = new vector<bool>(*m + 1, false);  // include 0, for a reasonable size m
-	    for (size_t i = 0; i < nrow; i++) {
-        	(*tmp)[vec[i]] = true;
-    	}
-    	int total = 0;
-    	for (auto b : (*tmp)) {
-        	if (b) {
-    	        total++;
-	        }
-    	}
-    	return total;
-	}
+    static int count_unique(int *vec, size_t nrow) {
+        int *m = std::max_element(vec, vec + nrow);
+        auto tmp = new vector<bool>(*m + 1, false);  // include 0, for a reasonable size m
+        for (size_t i = 0; i < nrow; i++) {
+            (*tmp)[vec[i]] = true;
+        }
+        int total = 0;
+        for (auto b : (*tmp)) {
+            if (b) {
+                total++;
+            }
+        }
+        return total;
+    }
 
-	// Map the column name to index value
-	static void map_header(const char **column_names, size_t len, size_t *index, char *line, size_t *tab_pos, size_t n_tab_pos) {
-    	for (size_t i = 0; i < len; i++) {
-        	size_t j = 0;
-        	while (j < n_tab_pos && strcmp(column_names[i], line + tab_pos[j]) != 0) {
-            	j++;
-	        }
+    // Map the column name to index value
+    static void map_header(const char **column_names, size_t len, size_t *index, char *line, size_t *tab_pos, size_t n_tab_pos) {
+        for (size_t i = 0; i < len; i++) {
+            size_t j = 0;
+            while (j < n_tab_pos && strcmp(column_names[i], line + tab_pos[j]) != 0) {
+                j++;
+            }
 
-    	    if (j < n_tab_pos) {
-        	    index[i] = j;
-        	} else {
-            	throw(string("Cannot find column in the header : ") + column_names[i]).c_str();
-        	}
-    	}
-	}
+            if (j < n_tab_pos) {
+                index[i] = j;
+            } else {
+                throw(string("Cannot find column in the header : ") + column_names[i]).c_str();
+            }
+        }
+    }
 
     // concatenate strings with '_' in between
-	static string concatenate(const vector<string> &v) {
-    	string tmp = v[0];
-    	for (size_t i = 1; i < v.size(); i++) {
-        	tmp += ("_" + v[i]);
-    	}
-    	return tmp;
-	}
+    static string concatenate(const vector<string> &v) {
+        string tmp = v[0];
+        for (size_t i = 1; i < v.size(); i++) {
+            tmp += ("_" + v[i]);
+        }
+        return tmp;
+    }
 
     // Read a tab-separated line from buffer
     static int getline_tab(char **buffer, size_t *n, FILE *stream, size_t **positions, size_t *npos) {
@@ -104,9 +106,9 @@ public:
 
             *positions = (size_t *)realloc(*positions, (BUFFER_SIZE + 1) * sizeof(size_t));  // if NULL, realloc = malloc
             if (*positions == NULL) {
-				if (*buffer) {
-					free(*buffer);
-				}
+                if (*buffer) {
+                    free(*buffer);
+                }
                 throw "Cannot allocate memory";
             }
         }
@@ -154,9 +156,9 @@ public:
             // OK, more data available extend buffer
             *buffer = (char *)realloc(*buffer, *n * 2);
             if (*buffer == NULL) {
-				if (*positions) {
-					free(*positions);
-				}
+                if (*positions) {
+                    free(*positions);
+                }
                 throw "Cannot allocate memory";
             }
             remaining_buffer_size = *n + 1;
@@ -165,9 +167,9 @@ public:
 
             *positions = (size_t *)realloc(*positions, (*n + 1) * sizeof(size_t));  // if NULL, realloc = malloc
             if (*positions == NULL) {
-				if (*buffer) {
-					free(*buffer);
-				}
+                if (*buffer) {
+                    free(*buffer);
+                }
                 throw "Cannot allocate memory";
             }
         }
@@ -195,6 +197,7 @@ class string_vector_view {
         return true;
     }
 };
+
 
 // a simple hash function for unordered_map keys, K&R version 2
 struct hash_fn {
@@ -225,13 +228,13 @@ public:
     char *buf_1;
     bool eof;
 
-	// error checking in the calling function
+    // error checking in the calling function
     double_buffering_file_t(FILE *f) : f(f) {
         eof = false;
 
         buf_0 = (char *)malloc(n);
 
-		buf_1 = (char *)malloc(n);
+        buf_1 = (char *)malloc(n);
 
         current = 0;
         right_pos = n;
@@ -240,11 +243,11 @@ public:
 
     ~double_buffering_file_t() {
         if (buf_0) {
-			free(buf_0);
-		}
-		if (buf_1) {
-        	free(buf_1);
-		}
+            free(buf_0);
+        }
+        if (buf_1) {
+            free(buf_1);
+        }
     }
 
     // reading multiple lines
@@ -256,17 +259,17 @@ public:
             current = 1 - current;  // go back
             buf_0 = (char *)realloc(buf_0, n * 2);
 
-			if (buf_0 == NULL) {
-				free(buf_1);
-				return -1;
-			}
+            if (buf_0 == NULL) {
+                free(buf_1);
+                return -1;
+            }
 
             buf_1 = (char *)realloc(buf_1, n * 2);
 
-			if (buf_1 == NULL) {
-				free(buf_0);
-				return -1;
-			}
+            if (buf_1 == NULL) {
+                free(buf_0);
+                return -1;
+            }
 
             pos = right_pos;  // not 'n' because we did not read to the full of buffer
             n *= 2;
@@ -313,7 +316,7 @@ public:
         }
         current = 1 - current;  // switch buffer
 
-		return 0;
+        return 0;
     }
 };
 
@@ -329,18 +332,18 @@ void process(const vector<string> &argv,
              vector<vector<string>> *ions) {
     //--- example input parameters
     /*
-	const char* col_sample = "R.Condition";
-	const char* col_primary_id = "PG.ProteinGroups";
-	vector<const char*> col_secondary_ids({ "EG.ModifiedSequence", "FG.Charge", "F.FrgIon", "F.Charge" });
-	const char* col_quant = "F.PeakArea";
-	vector<const char*> col_annotations({ "PG.Genes", "PG.ProteinNames" });
+    const char* col_sample = "R.Condition";
+    const char* col_primary_id = "PG.ProteinGroups";
+    vector<const char*> col_secondary_ids({ "EG.ModifiedSequence", "FG.Charge", "F.FrgIon", "F.Charge" });
+    const char* col_quant = "F.PeakArea";
+    vector<const char*> col_annotations({ "PG.Genes", "PG.ProteinNames" });
 
-	vector<pair<const char*, const char*>> filter_string_equal({ pair<const char*, const char*>("F.ExcludedFromQuantification", "False"),
-																  pair<const char*, const char*>("F.FrgLossType", "noloss") });
+    vector<pair<const char*, const char*>> filter_string_equal({ pair<const char*, const char*>("F.ExcludedFromQuantification", "False"),
+                                                                  pair<const char*, const char*>("F.FrgLossType", "noloss") });
 
-	vector<pair<const char*, double>> filter_double_less({ pair<const char*, double>("PG.Qvalue", 0.01),
-														   pair<const char*, double>("EG.Qvalue", 0.01) });
-	*/
+    vector<pair<const char*, double>> filter_double_less({ pair<const char*, double>("PG.Qvalue", 0.01),
+                                                           pair<const char*, double>("EG.Qvalue", 0.01) });
+    */
 
     const char *col_sample = "";
     const char *col_primary_id = "";
@@ -353,20 +356,20 @@ void process(const vector<string> &argv,
 
     if (argv.size() < 1) {
         /*
-		std::cout << "\nUsage: [OPTION] input_file_name\n\n";
-		std::cout << "Convert input file to a concise representation for iq.\n\n";
-		std::cout << "  --header\n\tOnly show header of the input file\n";
-		std::cout << "  --no-annotation\n\tNo annotation column\n";
-		std::cout << "  --annotation COL(s) --|input_file_name\n\tFollowing entries are annotation columns until the next switch or input_file_name\n\t[PG.Genes PG.ProteinNames]\n";
-		std::cout << "  --sample COL\n\tSample column [R.Condition]\n";
-		std::cout << "  --quant COL\n\tQuantitative column [F.PeakArea]\n";
-		std::cout << "  --primary COL\n\tProtein column [PG.ProteinGroups]\n";
-		std::cout << "  --secondary COL(s) --|input_file_name\n\tFollowing entries are ion columns until the next switch or input_file_name\n\t[EG.ModifiedSequence FG.Charge F.FrgIon F.Charge]\n";
-		std::cout << "  --clear-all-filters\n\tClear all filterings\n";
-		std::cout << "  --filter-string-equal COL VALUE\n\tAdd a string filtering (COL == VALUE entries are kept)\n\t[F.ExcludedFromQuantification False] & [F.FrgLossType noloss]\n";
-		std::cout << "  --filter-double-less COL VALUE\n\tAdd a double filtering (NaN COL and COL < VALUE entries are kept)\n\t[PG.Qvalue 0.01] & [EG.Qvalue 0.01]\n";
-		std::cout << "  --output-dir VALUE\n\tDirectory for output files\n";
-		*/
+        std::cout << "\nUsage: [OPTION] input_file_name\n\n";
+        std::cout << "Convert input file to a concise representation for iq.\n\n";
+        std::cout << "  --header\n\tOnly show header of the input file\n";
+        std::cout << "  --no-annotation\n\tNo annotation column\n";
+        std::cout << "  --annotation COL(s) --|input_file_name\n\tFollowing entries are annotation columns until the next switch or input_file_name\n\t[PG.Genes PG.ProteinNames]\n";
+        std::cout << "  --sample COL\n\tSample column [R.Condition]\n";
+        std::cout << "  --quant COL\n\tQuantitative column [F.PeakArea]\n";
+        std::cout << "  --primary COL\n\tProtein column [PG.ProteinGroups]\n";
+        std::cout << "  --secondary COL(s) --|input_file_name\n\tFollowing entries are ion columns until the next switch or input_file_name\n\t[EG.ModifiedSequence FG.Charge F.FrgIon F.Charge]\n";
+        std::cout << "  --clear-all-filters\n\tClear all filterings\n";
+        std::cout << "  --filter-string-equal COL VALUE\n\tAdd a string filtering (COL == VALUE entries are kept)\n\t[F.ExcludedFromQuantification False] & [F.FrgLossType noloss]\n";
+        std::cout << "  --filter-double-less COL VALUE\n\tAdd a double filtering (NaN COL and COL < VALUE entries are kept)\n\t[PG.Qvalue 0.01] & [EG.Qvalue 0.01]\n";
+        std::cout << "  --output-dir VALUE\n\tDirectory for output files\n";
+        */
         throw "Not enough arguments";
     }
 
@@ -549,8 +552,8 @@ void process(const vector<string> &argv,
         annotation_colnames->push_back(string(n));
     }
 
-	if (line) {
-    	free(line);
+    if (line) {
+        free(line);
     }
     if (tab_pos) {
         free(tab_pos);
@@ -659,42 +662,48 @@ void process(const vector<string> &argv,
         }
     };
 
-    omp_set_dynamic(0);
-    /*
-    int no_threads = omp_get_num_procs() - 1;
-    if (no_threads < 1) {
-        no_threads = 1;
-    }
-    */
+    
 
-    int no_threads = 4;
+    #ifdef _OPENMP
 
-    omp_set_num_threads(no_threads);
+        omp_set_dynamic(0);
 
-    Rprintf("\n%d thread(s) used ...\n", no_threads);
+        int no_threads = 4;
+
+        omp_set_num_threads(no_threads);
+    
+        Rprintf("\n%d threads used ...\n", no_threads);
+
+    #else
+            
+        Rprintf("Using a single CPU core...\n");
+
+    #endif
+
+    
 
     auto double_buffers = new double_buffering_file_t(fp);
 
-	auto cleanup = [&]() {
-		delete map_proteins;
-		delete map_ions;
-		delete map_samples;
+    auto cleanup = [&]() {
+        delete map_proteins;
+        delete map_ions;
+        delete map_samples;
 
-		delete filtered;
+        delete filtered;
 
-		delete _line;
-		delete _line_new;
-		delete _tab;
-		fclose(fp);
-		delete double_buffers;
-	};
+        delete _line;
+        delete _line_new;
+        delete _tab;
+        fclose(fp);
+        delete double_buffers;
+    };
 
-	if (double_buffers->buf_0 == NULL || double_buffers->buf_1 == NULL) {
-		cleanup();
-		throw "Cannot allocate memory.";
-	}
+    if (double_buffers->buf_0 == NULL || double_buffers->buf_1 == NULL) {
+        cleanup();
+        throw "Cannot allocate memory.";
+    }
 
-	bool memory_ok = true;
+    bool memory_ok = true;
 
     while (true) {
 
@@ -709,9 +718,9 @@ void process(const vector<string> &argv,
                 _tab->resize(_line->size(), vector<char *>(n_cols, 0));
             }
 
-			int line_mismatched = 0;
+            int line_mismatched = 0;
 
-			#pragma omp parallel for schedule(static)
+            #pragma omp parallel for schedule(static)
             for (size_t n = 0; n < _line->size(); n++) {
 
                 (*_tab)[n][0] = (*_line)[n];
@@ -724,7 +733,7 @@ void process(const vector<string> &argv,
                         *c = 0;
                         pos++;
                         if (pos == n_cols) {
-							line_mismatched = line_no + n + 1;
+                            line_mismatched = line_no + n + 1;
                         }
                         (*_tab)[n][pos] = ++c;
                     } else {
@@ -733,45 +742,45 @@ void process(const vector<string> &argv,
                 }
 
                 if ((pos + 1) != n_cols) {
-					line_mismatched = line_no + n + 1;
+                    line_mismatched = line_no + n + 1;
                 }
 
                 (*filtered)[n] = 0;
 
-				size_t i = 0;
-				while (i < filter_string_equal.size() && strcmp((*_tab)[n][col_filter_string_equal[i]], filter_string_equal[i].second) == 0) {
-					i++;
-				}
+                size_t i = 0;
+                while (i < filter_string_equal.size() && strcmp((*_tab)[n][col_filter_string_equal[i]], filter_string_equal[i].second) == 0) {
+                    i++;
+                }
 
-				if (i < filter_string_equal.size()) {
-					(*filtered)[n] = 1;
-				}
-				else {
-					i = 0;
-					while (i < filter_double_less.size() && (*filtered)[n] == 0) {
-            	        if (strcmp((*_tab)[n][col_filter_double_less[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_less[i]]) >= filter_double_less[i].second) { // gcc atof does not work for NaN
-                	        (*filtered)[n] = 1;
-	                    }
-						i++;
-					}
+                if (i < filter_string_equal.size()) {
+                    (*filtered)[n] = 1;
+                }
+                else {
+                    i = 0;
+                    while (i < filter_double_less.size() && (*filtered)[n] == 0) {
+                        if (strcmp((*_tab)[n][col_filter_double_less[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_less[i]]) >= filter_double_less[i].second) { // gcc atof does not work for NaN
+                            (*filtered)[n] = 1;
+                        }
+                        i++;
+                    }
 
-					if (strcmp((*_tab)[n][col_quant_ind], "NaN") == 0) {
-                    	(*filtered)[n] = 1;
-					}
-				}
+                    if (strcmp((*_tab)[n][col_quant_ind], "NaN") == 0) {
+                        (*filtered)[n] = 1;
+                    }
+                }
             }
 
-			if (line_mismatched > 0) { // no exception in parallel regions
-				cleanup();
-				throw ("Line " + to_string(line_mismatched) + ": the number of columns does not match header.\n").c_str();
-			}
+            if (line_mismatched > 0) { // no exception in parallel regions
+                cleanup();
+                throw ("Line " + to_string(line_mismatched) + ": the number of columns does not match header.\n").c_str();
+            }
 
             line_no += _line->size();
-			for (size_t n = 0; n < _line->size(); n++) {
-				if ((*filtered)[n] == 0) {
-        	        n_after_filtered++;
-            	}
-			}
+            for (size_t n = 0; n < _line->size(); n++) {
+                if ((*filtered)[n] == 0) {
+                    n_after_filtered++;
+                }
+            }
         }
 
 
@@ -782,57 +791,56 @@ void process(const vector<string> &argv,
             break;
         }
 
-		#pragma omp parallel sections
+        #pragma omp parallel sections
         {
-			#pragma omp section
+            #pragma omp section
             {
                 if (!_line->empty()) {
                     do_ion();
                 }
             }
-			#pragma omp section
+            #pragma omp section
             {
                 if (!_line->empty()) {
                     do_sample();
                 }
             }
-			#pragma omp section
+            #pragma omp section
             {
                 if (!_line->empty()) {
                     do_protein();
                 }
             }
 
-			#pragma omp section
+            #pragma omp section
             {
                 if (double_buffers->fgetss(*_line_new) != 0) {
-					memory_ok = false;
-				}
+                    memory_ok = false;
+                }
             }
         }
 
-		if (!memory_ok) {
-			cleanup();
-			throw "Cannot allocate memory.";
-		}
+        if (!memory_ok) {
+            cleanup();
+            throw "Cannot allocate memory.";
+        }
 
         if (samples->size() >= print_threshold) {
             Rprintf("%d samples read\n", samples->size());
             print_threshold = samples->size() + 20;
         }
     }
-	Rprintf("\n# lines read (excluding headers) = %d\n", line_no-1);
-	Rprintf("# lines after filtered           = %d\n\n", n_after_filtered);
+    Rprintf("\n# lines read (excluding headers) = %d\n", line_no-1);
+    Rprintf("# lines after filtered           = %d\n\n", n_after_filtered);
 
-	Rprintf("# samples  = %d\n", samples->size());
-	Rprintf("# proteins = %d\n", annotation->size());
+    Rprintf("# samples  = %d\n", samples->size());
+    Rprintf("# proteins = %d\n", annotation->size());
 
-	cleanup();
+    cleanup();
 }
 
 
 SEXP iq_filter(SEXP cmd) {
-
 
     const char *c = CHAR(STRING_ELT(cmd, 0));
 
@@ -894,8 +902,6 @@ SEXP iq_filter(SEXP cmd) {
         return (R_NilValue);
     }
 
-    //Rprintf("%s\n", c);
-
     SEXP p_index = PROTECT(allocMatrix(INTSXP, protein_index->size(), 1));
     copy(protein_index->begin(), protein_index->end(), INTEGER(p_index));
 
@@ -951,14 +957,6 @@ SEXP iq_filter(SEXP cmd) {
 
     setAttrib(quant_tab, R_NamesSymbol, quant_tab_names);
 
-    /*
-	namesgets(quant_tab, quant_tab_names);
-	SEXP rn = PROTECT(allocVector(INTSXP, 2));
-	INTEGER(rn)[0] = NA_INTEGER;
-	INTEGER(rn)[1] = -protein_index->size();
-	setAttrib(quant_tab, R_RowNamesSymbol, rn);
-	*/
-
     SEXP vec = PROTECT(allocVector(VECSXP, 4));
     SET_VECTOR_ELT(vec, 0, quant_tab);
     SET_VECTOR_ELT(vec, 1, ann);
@@ -974,7 +972,6 @@ SEXP iq_filter(SEXP cmd) {
 
     setAttrib(vec, R_NamesSymbol, names);
 
-    //UNPROTECT(15); // +2 for data.frame
     UNPROTECT(13);
 
     delete ions;
@@ -1000,8 +997,8 @@ using Eigen::VectorXd;
 
 class ion_table {
 
-	static int full_connection;
-	static FullPivHouseholderQR<MatrixXd> full_qr;
+    static int full_connection;
+    static FullPivHouseholderQR<MatrixXd> full_qr;
 
 public:
     static void init(int N) {
@@ -1116,7 +1113,6 @@ public:
                     buffer[ind[0]] = get_median(median_buffer, median_size);
                 }
             } else {
-                //maxLFQ.do for all samples in 'ind'
 
                 int N = ind.size();
 
@@ -1194,7 +1190,6 @@ int ion_table::full_connection;
 FullPivHouseholderQR<MatrixXd> ion_table::full_qr;
 
 
-
 SEXP get_list_element(SEXP list, const char *str) {
     SEXP names = getAttrib(list, R_NamesSymbol);
 
@@ -1208,35 +1203,32 @@ SEXP get_list_element(SEXP list, const char *str) {
 }
 
 
-// OPENMP things
-Rboolean R_ToplevelExec(void (*fun)(void *), void *data);
-
 static void tp_user(void *dummy) {
     R_CheckUserInterrupt();
 }
 
-// this will call the above in a top-level context so it won't longjmp-out of your context
+// call the above in a top-level context
 int tp_check() {
     return (R_ToplevelExec(tp_user, NULL) == FALSE);
 }
-// end OPENMP things
 
 SEXP iq_MaxLFQ(SEXP list) {
 
 
     int stop_sig = 0;
 
-    int *proteins;
-    int *ions;
-    int *samples;
-    double *quants;
+    int* proteins;
+    int* ions;
+    int* samples;
+    double* quants;
 
     try {
         proteins = INTEGER(get_list_element(list, "protein_index"));
         ions = INTEGER(get_list_element(list, "ion_index"));
         samples = INTEGER(get_list_element(list, "sample_index"));
         quants = REAL(get_list_element(list, "quant"));
-    } catch (const char *msg) {
+    }
+    catch (const char* msg) {
         Rprintf("%s\n", msg);
         return (R_NilValue);
     }
@@ -1247,11 +1239,11 @@ SEXP iq_MaxLFQ(SEXP list) {
     int n_samples = utils::count_unique(samples, nrow);
 
     SEXP table = PROTECT(allocMatrix(REALSXP, n_proteins, n_samples));
-    double *buffer = REAL(table);
+    double* buffer = REAL(table);
 
     auto group_annotation = new vector<string>(n_proteins, "");
-    int *row_names = new int[n_proteins];
-    int *col_names = new int[n_samples];
+    int* row_names = new int[n_proteins];
+    int* col_names = new int[n_samples];
 
     Rprintf("nrow = %d, # proteins = %d, # samples = %d\n", nrow, n_proteins, n_samples);
 
@@ -1270,7 +1262,8 @@ SEXP iq_MaxLFQ(SEXP list) {
         if (samples[i] >= (int)sample_set.size()) {
             sample_set.resize(samples[i] + 1, -1);
             sample_set[samples[i]] = 0;
-        } else {
+        }
+        else {
             sample_set[samples[i]] = 0;
         }
     }
@@ -1296,23 +1289,39 @@ SEXP iq_MaxLFQ(SEXP list) {
 
     int thres_display = 0;
 
-    omp_set_dynamic(0);
+   
+    #ifdef _OPENMP
+        
+        omp_set_dynamic(0);
 
-    int no_threads = omp_get_num_procs() - 1;
-    if (no_threads < 1) {
-        no_threads = 1;
-    }
-    omp_set_num_threads(no_threads);
+        int no_threads = omp_get_num_procs() - 1;
 
-    Rprintf("%d thread(s) available...\n", no_threads);
+        if (no_threads < 1) {
+            no_threads = 1;
+        }
 
-	#pragma omp parallel for schedule(dynamic)
+        omp_set_num_threads(no_threads);
+
+        Rprintf("%d thread(s) available...\n", no_threads);
+
+    #else
+
+        Rprintf("Using a single CPU core...\n");
+
+    #endif
+
+    
+
+    #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < n_proteins; i++) {
         if (stop_sig)
             continue;
 
         int thread_id = 0;
-        thread_id = omp_get_thread_num();
+
+        #ifdef _OPENMP
+            thread_id = omp_get_thread_num();
+        #endif
 
         if (!(*protein_index)[i].empty()) {
 
@@ -1373,14 +1382,7 @@ SEXP iq_MaxLFQ(SEXP list) {
 
             delete[] w;
             delete[] gr;
-
             delete tab;
-
-            /*
-			if (tp_check()) { // user interrupted ...
-				stop_sig = 1;
-			}
-			*/
         }
 
         if (thread_id == 0) {
@@ -1392,7 +1394,7 @@ SEXP iq_MaxLFQ(SEXP list) {
 
             if (tp_check()) {  // user interrupted ...
                 stop_sig = 1;
-				#pragma omp flush(stop_sig)
+                #pragma omp flush(stop_sig)
             }
         }
     }
@@ -1448,7 +1450,6 @@ SEXP iq_MaxLFQ(SEXP list) {
     delete[] col_names;
     delete[] row_names;
 
-
     Rprintf("Completed.\n");
     return (vec);
 }
@@ -1464,5 +1465,3 @@ void R_init_myLib(DllInfo *info) {
     R_useDynamicSymbols(info, FALSE);
     R_forceSymbols(info, TRUE);
 }
-
-
