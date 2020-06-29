@@ -1,3 +1,11 @@
+## Ver 1.9
+
+- rchk: fix protection stack imbalance.
+
+## Ver 1.8
+
+- Revise code to get rid of rchk complaints.
+
 ## Ver 1.7
 
 - Remove the R_ToplevelExec declaration to fix a compilation problem on Solaris.

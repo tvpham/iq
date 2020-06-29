@@ -5,3 +5,4 @@ inst/doc
 ./src
 .gitignore
 .iq.Rproj
+.Rhistory
