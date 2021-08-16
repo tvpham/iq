@@ -18,3 +18,7 @@ and the package can be loaded in the usual manner
 ```
 library("iq")
 ```
+
+## Usage
+
+See [an example](https://cran.r-project.org/web/packages/iq/vignettes/iq-fast.html).
