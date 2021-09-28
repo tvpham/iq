@@ -362,7 +362,7 @@ create_protein_table <- function(protein_list, method = "maxLFQ", ...) {
 
         if (method == "maxLFQ") {
             out <- maxLFQ(protein_list[[i]], ...)
-        } else if (method == "medpolish") {
+        } else if (method == "median_polish") {
             out <- median_polish(protein_list[[i]], ...)
         } else if (method == "topN") {
             out <- topN(protein_list[[i]], ...)

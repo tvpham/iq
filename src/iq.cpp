@@ -31,13 +31,14 @@ This software uses the Eigen library 3.3.7 under MPL2.
 
 #include <Eigen/Dense>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include <R.h>
 #include <R_ext/Utils.h>
 #include <Rinternals.h>
 
-#ifdef _OPENMP
-    #include <omp.h>
-#endif
 
 extern "C" SEXP iq_filter(SEXP);
 extern "C" SEXP iq_MaxLFQ(SEXP);

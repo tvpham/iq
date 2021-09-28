@@ -1,3 +1,9 @@
+## Ver 1.9.1
+
+- Revise code (change order of header files) to support OpenMP in clang 13.0.0.
+
+- fix typo: medpolish to median_polish
+
 ## Ver 1.9
 
 - rchk: fix protection stack imbalance.
