@@ -21,4 +21,6 @@ library("iq")
 
 ## Usage
 
-See [an example](https://cran.r-project.org/web/packages/iq/vignettes/iq-fast.html).
+See [a recent example](https://cran.r-project.org/web/packages/iq/vignettes/iq-fast.html).
+
+Or [an older vignette](https://cran.r-project.org/web/packages/iq/vignettes/iq.html) with some visualization.

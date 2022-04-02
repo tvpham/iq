@@ -1,3 +1,7 @@
+## Ver 1.9.3
+
+- Use RcppEigen
+
 ## Ver 1.9.1
 
 - Revise code (change order of header files) to support OpenMP in clang 13.0.0.

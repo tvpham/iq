@@ -29,11 +29,14 @@ This software uses the Eigen library 3.3.7 under MPL2.
 #include <string>
 #include <utility>
 
-#include <Eigen/Dense>
+//#include <Eigen/Dense>
+#include <RcppEigen.h>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
+#define R_NO_REMAP
 
 #include <R.h>
 #include <R_ext/Utils.h>
@@ -663,7 +666,7 @@ void process(const vector<string> &argv,
         }
     };
 
-    
+
 
     #ifdef _OPENMP
 
@@ -672,16 +675,16 @@ void process(const vector<string> &argv,
         int no_threads = 4;
 
         omp_set_num_threads(no_threads);
-    
+
         Rprintf("\n%d threads used ...\n", no_threads);
 
     #else
-            
+
         Rprintf("Using a single CPU core...\n");
 
     #endif
 
-    
+
 
     auto double_buffers = new double_buffering_file_t(fp);
 
@@ -840,7 +843,7 @@ void process(const vector<string> &argv,
     cleanup();
 }
 
-
+// [[Rcpp::export]]
 SEXP iq_filter(SEXP cmd) {
 
     const char *c = CHAR(STRING_ELT(cmd, 0));
@@ -903,75 +906,75 @@ SEXP iq_filter(SEXP cmd) {
         return (R_NilValue);
     }
 
-    SEXP p_index = PROTECT(allocMatrix(INTSXP, protein_index->size(), 1));
+    SEXP p_index = PROTECT(Rf_allocMatrix(INTSXP, protein_index->size(), 1));
     copy(protein_index->begin(), protein_index->end(), INTEGER(p_index));
 
-    SEXP s_index = PROTECT(allocMatrix(INTSXP, sample_index->size(), 1));
+    SEXP s_index = PROTECT(Rf_allocMatrix(INTSXP, sample_index->size(), 1));
     copy(sample_index->begin(), sample_index->end(), INTEGER(s_index));
 
-    SEXP i_index = PROTECT(allocMatrix(INTSXP, ion_index->size(), 1));
+    SEXP i_index = PROTECT(Rf_allocMatrix(INTSXP, ion_index->size(), 1));
     copy(ion_index->begin(), ion_index->end(), INTEGER(i_index));
 
-    SEXP q = PROTECT(allocMatrix(REALSXP, quant->size(), 1));
+    SEXP q = PROTECT(Rf_allocMatrix(REALSXP, quant->size(), 1));
     copy(quant->begin(), quant->end(), REAL(q));
 
-    SEXP ion_str = PROTECT(allocMatrix(STRSXP, ions->size(), 1));
+    SEXP ion_str = PROTECT(Rf_allocMatrix(STRSXP, ions->size(), 1));
     for (size_t i = 0; i < ions->size(); i++) {
         // concatenate
-        SET_STRING_ELT(ion_str, i, mkChar(utils::concatenate(ions->at(i)).c_str()));
+        SET_STRING_ELT(ion_str, i, Rf_mkChar(utils::concatenate(ions->at(i)).c_str()));
     }
 
-    SEXP sample_str = PROTECT(allocMatrix(STRSXP, samples->size(), 1));
+    SEXP sample_str = PROTECT(Rf_allocMatrix(STRSXP, samples->size(), 1));
     for (size_t i = 0; i < samples->size(); i++) {
-        SET_STRING_ELT(sample_str, i, mkChar(samples->at(i).c_str()));
+        SET_STRING_ELT(sample_str, i, Rf_mkChar(samples->at(i).c_str()));
     }
 
-    SEXP ann = PROTECT(allocMatrix(STRSXP, annotation->size(), annotation->at(0).size()));
+    SEXP ann = PROTECT(Rf_allocMatrix(STRSXP, annotation->size(), annotation->at(0).size()));
     for (size_t i = 0; i < annotation->size(); i++) {
         for (size_t j = 0; j < annotation->at(i).size(); j++) {
-            SET_STRING_ELT(ann, i + j * annotation->size(), mkChar(annotation->at(i).at(j).c_str()));
+            SET_STRING_ELT(ann, i + j * annotation->size(), Rf_mkChar(annotation->at(i).at(j).c_str()));
         }
     }
 
     // name for annotation tables
-    SEXP col_names = PROTECT(allocVector(STRSXP, col_annotation->size()));
+    SEXP col_names = PROTECT(Rf_allocVector(STRSXP, col_annotation->size()));
     for (size_t i = 0; i < col_annotation->size(); i++) {
-        SET_STRING_ELT(col_names, i, mkChar(col_annotation->at(i).c_str()));
+        SET_STRING_ELT(col_names, i, Rf_mkChar(col_annotation->at(i).c_str()));
     }
 
-    SEXP dimnames = PROTECT(allocVector(VECSXP, 2));
+    SEXP dimnames = PROTECT(Rf_allocVector(VECSXP, 2));
     SET_VECTOR_ELT(dimnames, 1, col_names);
-    setAttrib(ann, R_DimNamesSymbol, dimnames);
+    Rf_setAttrib(ann, R_DimNamesSymbol, dimnames);
 
-    SEXP quant_tab = PROTECT(allocVector(VECSXP, 4));
+    SEXP quant_tab = PROTECT(Rf_allocVector(VECSXP, 4));
     SET_VECTOR_ELT(quant_tab, 0, p_index);
     SET_VECTOR_ELT(quant_tab, 1, s_index);
     SET_VECTOR_ELT(quant_tab, 2, i_index);
     SET_VECTOR_ELT(quant_tab, 3, q);
 
 
-    SEXP quant_tab_names = PROTECT(allocVector(STRSXP, 4));
-    SET_STRING_ELT(quant_tab_names, 0, mkChar("protein_list"));
-    SET_STRING_ELT(quant_tab_names, 1, mkChar("sample_list"));
-    SET_STRING_ELT(quant_tab_names, 2, mkChar("id"));
-    SET_STRING_ELT(quant_tab_names, 3, mkChar("quant"));
+    SEXP quant_tab_names = PROTECT(Rf_allocVector(STRSXP, 4));
+    SET_STRING_ELT(quant_tab_names, 0, Rf_mkChar("protein_list"));
+    SET_STRING_ELT(quant_tab_names, 1, Rf_mkChar("sample_list"));
+    SET_STRING_ELT(quant_tab_names, 2, Rf_mkChar("id"));
+    SET_STRING_ELT(quant_tab_names, 3, Rf_mkChar("quant"));
 
-    setAttrib(quant_tab, R_NamesSymbol, quant_tab_names);
+    Rf_setAttrib(quant_tab, R_NamesSymbol, quant_tab_names);
 
-    SEXP vec = PROTECT(allocVector(VECSXP, 4));
+    SEXP vec = PROTECT(Rf_allocVector(VECSXP, 4));
     SET_VECTOR_ELT(vec, 0, quant_tab);
     SET_VECTOR_ELT(vec, 1, ann);
     SET_VECTOR_ELT(vec, 2, sample_str);
     SET_VECTOR_ELT(vec, 3, ion_str);
 
 
-    SEXP names = PROTECT(allocVector(STRSXP, 4));
-    SET_STRING_ELT(names, 0, mkChar("quant_table"));
-    SET_STRING_ELT(names, 1, mkChar("protein"));
-    SET_STRING_ELT(names, 2, mkChar("sample"));
-    SET_STRING_ELT(names, 3, mkChar("ion"));
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
+    SET_STRING_ELT(names, 0, Rf_mkChar("quant_table"));
+    SET_STRING_ELT(names, 1, Rf_mkChar("protein"));
+    SET_STRING_ELT(names, 2, Rf_mkChar("sample"));
+    SET_STRING_ELT(names, 3, Rf_mkChar("ion"));
 
-    setAttrib(vec, R_NamesSymbol, names);
+    Rf_setAttrib(vec, R_NamesSymbol, names);
 
     UNPROTECT(13);
 
@@ -1190,11 +1193,11 @@ public:
 int ion_table::full_connection;
 FullPivHouseholderQR<MatrixXd> ion_table::full_qr;
 
-
+// [[Rcpp::export]]
 SEXP get_list_element(SEXP list, const char *str) {
-    SEXP names = getAttrib(list, R_NamesSymbol);
+    SEXP names = Rf_getAttrib(list, R_NamesSymbol);
 
-    for (int i = 0; i < length(list); i++) {
+    for (int i = 0; i < Rf_length(list); i++) {
         if (strcmp(CHAR(STRING_ELT(names, i)), str) == 0) {
             return (VECTOR_ELT(list, i));
         }
@@ -1213,6 +1216,7 @@ int tp_check() {
     return (R_ToplevelExec(tp_user, NULL) == FALSE);
 }
 
+// [[Rcpp::export]]
 SEXP iq_MaxLFQ(SEXP list) {
 
 
@@ -1234,12 +1238,12 @@ SEXP iq_MaxLFQ(SEXP list) {
         return (R_NilValue);
     }
 
-    size_t nrow = xlength(get_list_element(list, "protein_index"));
+    size_t nrow = Rf_xlength(get_list_element(list, "protein_index"));
 
     int n_proteins = utils::count_unique(proteins, nrow);
     int n_samples = utils::count_unique(samples, nrow);
 
-    SEXP table = PROTECT(allocMatrix(REALSXP, n_proteins, n_samples));
+    SEXP table = PROTECT(Rf_allocMatrix(REALSXP, n_proteins, n_samples));
     double* buffer = REAL(table);
 
     auto group_annotation = new vector<string>(n_proteins, "");
@@ -1290,9 +1294,9 @@ SEXP iq_MaxLFQ(SEXP list) {
 
     int thres_display = 0;
 
-   
+
     #ifdef _OPENMP
-        
+
         omp_set_dynamic(0);
 
         int no_threads = omp_get_num_procs() - 1;
@@ -1311,7 +1315,7 @@ SEXP iq_MaxLFQ(SEXP list) {
 
     #endif
 
-    
+
 
     #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < n_proteins; i++) {
@@ -1414,38 +1418,38 @@ SEXP iq_MaxLFQ(SEXP list) {
     }
 
     // estimate names
-    SEXP r_names = PROTECT(allocVector(STRSXP, n_proteins));
+    SEXP r_names = PROTECT(Rf_allocVector(STRSXP, n_proteins));
     for (int i = 0; i < n_proteins; i++) {
-        SET_STRING_ELT(r_names, i, mkChar(to_string(row_names[i]).c_str()));
+        SET_STRING_ELT(r_names, i, Rf_mkChar(to_string(row_names[i]).c_str()));
     }
 
-    SEXP c_names = PROTECT(allocVector(STRSXP, n_samples));
+    SEXP c_names = PROTECT(Rf_allocVector(STRSXP, n_samples));
     for (int i = 0; i < n_samples; i++) {
-        SET_STRING_ELT(c_names, i, mkChar(to_string(col_names[i]).c_str()));
+        SET_STRING_ELT(c_names, i, Rf_mkChar(to_string(col_names[i]).c_str()));
     }
 
     //SEXP dimnames = getAttrib(ann, R_DimNamesSymbol);
-    SEXP dimnames = PROTECT(allocVector(VECSXP, 2));
+    SEXP dimnames = PROTECT(Rf_allocVector(VECSXP, 2));
     SET_VECTOR_ELT(dimnames, 0, r_names);
     SET_VECTOR_ELT(dimnames, 1, c_names);
-    setAttrib(table, R_DimNamesSymbol, dimnames);
+    Rf_setAttrib(table, R_DimNamesSymbol, dimnames);
 
     // annotation
-    SEXP ann = PROTECT(allocVector(STRSXP, n_proteins));
+    SEXP ann = PROTECT(Rf_allocVector(STRSXP, n_proteins));
     for (int i = 0; i < n_proteins; i++) {
-        SET_STRING_ELT(ann, i, mkChar(group_annotation->at(i).c_str()));
+        SET_STRING_ELT(ann, i, Rf_mkChar(group_annotation->at(i).c_str()));
     }
 
     // return list
-    SEXP vec = PROTECT(allocVector(VECSXP, 2));
+    SEXP vec = PROTECT(Rf_allocVector(VECSXP, 2));
     SET_VECTOR_ELT(vec, 0, table);
     SET_VECTOR_ELT(vec, 1, ann);
 
-    SEXP names = PROTECT(allocVector(STRSXP, 2));
-    SET_STRING_ELT(names, 0, mkChar("estimate"));
-    SET_STRING_ELT(names, 1, mkChar("annotation"));
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+    SET_STRING_ELT(names, 0, Rf_mkChar("estimate"));
+    SET_STRING_ELT(names, 1, Rf_mkChar("annotation"));
 
-    setAttrib(vec, R_NamesSymbol, names);
+    Rf_setAttrib(vec, R_NamesSymbol, names);
 
     Rprintf("Completed.\n");
 
@@ -1455,7 +1459,7 @@ SEXP iq_MaxLFQ(SEXP list) {
     delete group_annotation;
     delete[] col_names;
     delete[] row_names;
-    
+
     return (vec);
 }
 
