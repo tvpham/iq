@@ -11,9 +11,7 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 1.8
-
-This software uses the Eigen library 3.3.7 under MPL2.
+Software version: 1.9.3
 
 #########################################################################
 */
@@ -29,7 +27,6 @@ This software uses the Eigen library 3.3.7 under MPL2.
 #include <string>
 #include <utility>
 
-//#include <Eigen/Dense>
 #include <RcppEigen.h>
 
 #ifdef _OPENMP
