@@ -13,7 +13,7 @@ The package is hosted on CRAN. It is best to install from within R.
 install.packages("iq")
 ```
 
-If you have a small dataset and just want to try out the MaxLFQ algorithm, you can use the version in pure R without any installation. Just source the R code as follows and omit the ```iq::`` in your script.
+If you have a small dataset and just want to try out the MaxLFQ algorithm, you can use the version in pure R without any installation. Just source the R code as follows and omit the ```iq::``` in your script.
 
 ```
 source("https://github.com/tvpham/iq/releases/download/pureR/iq.R")
