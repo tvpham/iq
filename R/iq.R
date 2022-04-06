@@ -1,6 +1,16 @@
-# iq: tools for protein quantification for DIA data
-# Author: Thang Pham
-# June 21, 2019
+#########################################################################
+#
+# Author: Thang V. Pham, t.pham@amsterdamumc.nl
+#
+# All rights reserved.
+#
+# Citation:
+#
+# Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, Bioinformatics 2020 Apr 15;36(8):2611-2613.
+#
+# Software version: 1.9.3
+#
+#########################################################################
 
 preprocess <- function(quant_table,
                        primary_id = "PG.ProteinGroups",
