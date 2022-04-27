@@ -176,7 +176,8 @@ for (p in unique(precursor)) {
                            Genes = as.character(ss$PG.Genes[1]), 
                            Precursor.Id = p, 
                            Fragment.Quant.Corrected = paste(ss$F.PeakArea, collapse = ";"), 
-                           Fragment.Info = paste(paste(ss$F.FrgIon, ss$F.Charge, sep="_"), collapse = ";")))
+                           Fragment.Info = paste(paste(ss$F.FrgIon, ss$F.Charge, sep="_"), 
+                                                 collapse = ";")))
     }
 }
 
