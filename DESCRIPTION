@@ -1,22 +1,23 @@
 Package: iq
 Type: Package
 Title: Protein Quantification in Mass Spectrometry-Based Proteomics
-Version: 1.9.3
+Version: 1.9.6
 Authors@R: c(person("Thang", "Pham", email = "t.pham@amsterdamumc.nl",
                     role = c("aut", "cre", "cph", "ctb"),
                     comment = c(ORCID = "0000-0003-0333-2492")),
-             person("Alex", "Henneman", email = "a.henneman@amsterdamumc.nl",
+             person("Alex", "Henneman",
                     role = c("ctb"),
                     comment = c(ORCID = "0000-0002-3746-4410")))
 Maintainer: Thang Pham <t.pham@amsterdamumc.nl>
-Description: An implementation of the maximal
-    peptide ratio extraction module of the MaxLFQ algorithm by
-    Cox et al. (2014) <doi:10.1074/mcp.M113.031591> in a complete
+Description: An implementation of the MaxLFQ algorithm by
+    Cox et al. (2014) <doi:10.1074/mcp.M113.031591> in a comprehensive
     pipeline for processing proteomics data in data-independent acquisition mode
     (Pham et al. 2020 <doi:10.1093/bioinformatics/btz961>).
     It offers additional options for protein quantification using
     the N most intense fragment ions, using all fragment ions, and
     a wrapper for the median polish algorithm by Tukey (1977, ISBN:0201076160).
+    In general, the tool can be used to integrate multiple 
+    proportional observations into a single quantitative value.
 Depends: R (>= 2.10)
 License: BSD_3_clause + file LICENSE
 LinkingTo: Rcpp, RcppEigen

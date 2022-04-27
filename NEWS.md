@@ -1,3 +1,18 @@
+## Ver 1.9.6
+
+- add support for multiple quantitative values per table cell, for examples fragment intensities separated by ';' in DIA-NN output.
+
+- add oneliner function 'process_long_format' for end-to-end processing with default values for DIA-NN.
+
+- add oneliner function 'process_wide_format' for end-to-end processing to collapse multiple rows with same id, such as multiple entries for a gene.
+
+- fix NOTE due to Rcpp
+
+- fix memory reallocation problem
+
+- better exception handling
+
+=======
 ## Ver 1.9.3
 
 - Use RcppEigen

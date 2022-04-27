@@ -11,7 +11,7 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 1.9.3
+Software version: 1.9.6
 
 #########################################################################
 */
@@ -26,6 +26,8 @@ Software version: 1.9.3
 #include <fstream>
 #include <string>
 #include <utility>
+#include <exception>
+#include <stdexcept>
 
 #include <RcppEigen.h>
 
@@ -51,6 +53,7 @@ using namespace std;
 #define BUFFER_SIZE 4096
 
 #define FREAD_BUFSIZE 2097152
+
 
 class utils {
 public:
@@ -82,7 +85,7 @@ public:
             if (j < n_tab_pos) {
                 index[i] = j;
             } else {
-                throw(string("Cannot find column in the header : ") + column_names[i]).c_str();
+                throw runtime_error((string("Cannot find column in the header : ") + column_names[i]).c_str());
             }
         }
     }
@@ -101,7 +104,7 @@ public:
         if (*buffer == NULL) {
             *buffer = (char *)malloc(BUFFER_SIZE);
             if (*buffer == NULL) {
-                throw "Cannot allocate memory";
+                throw runtime_error("Cannot allocate memory");
             }
             *n = BUFFER_SIZE;
 
@@ -110,7 +113,7 @@ public:
                 if (*buffer) {
                     free(*buffer);
                 }
-                throw "Cannot allocate memory";
+                throw runtime_error("Cannot allocate memory");
             }
         }
 
@@ -160,7 +163,7 @@ public:
                 if (*positions) {
                     free(*positions);
                 }
-                throw "Cannot allocate memory";
+                throw runtime_error("Cannot allocate memory");
             }
             remaining_buffer_size = *n + 1;
             ptr = *buffer + (*n - 1);
@@ -171,10 +174,25 @@ public:
                 if (*buffer) {
                     free(*buffer);
                 }
-                throw "Cannot allocate memory";
+                throw runtime_error("Cannot allocate memory");
             }
         }
     }
+
+    static void split(char* c, const char* sep, vector<char*>* out) {
+        out->clear();
+        out->push_back(c);
+        while (*c) {
+            if (*c == *sep) {
+                *c++ = 0;
+                out->push_back(c);
+            }
+            else {
+                c++;
+            }
+        }
+    }
+
 };
 
 
@@ -184,6 +202,10 @@ class string_vector_view {
 
     string_vector_view(const char *str) {
         str_vec = {str};
+    }
+
+    string_vector_view(const string_vector_view& vv) {
+        str_vec = vv.str_vec;
     }
 
     bool operator==(const string_vector_view &rhs) const {
@@ -327,10 +349,10 @@ void process(const vector<string> &argv,
              vector<int> *sample_index,
              vector<int> *ion_index,
              vector<double> *quant,
-             vector<vector<string>> *annotation,
+             vector<vector<string>*> *annotation,
              vector<string> *annotation_colnames,
-             vector<string> *samples,
-             vector<vector<string>> *ions) {
+             vector<string*> *samples,
+             vector<vector<string>*> *ions) {
     //--- example input parameters
     /*
     const char* col_sample = "R.Condition";
@@ -355,6 +377,10 @@ void process(const vector<string> &argv,
     vector<pair<const char *, const char *>> filter_string_equal;
     vector<pair<const char *, double>> filter_double_less;
 
+    const char* intensity_col_sep = 0;
+    const char* intensity_col_id = 0;
+    const char* na_string = 0;
+
     if (argv.size() < 1) {
         /*
         std::cout << "\nUsage: [OPTION] input_file_name\n\n";
@@ -371,7 +397,13 @@ void process(const vector<string> &argv,
         std::cout << "  --filter-double-less COL VALUE\n\tAdd a double filtering (NaN COL and COL < VALUE entries are kept)\n\t[PG.Qvalue 0.01] & [EG.Qvalue 0.01]\n";
         std::cout << "  --output-dir VALUE\n\tDirectory for output files\n";
         */
-        throw "Not enough arguments";
+        /*
+        1.9.4
+        --intensity_col_sep [;]
+        --intensity_col_id [Fragment.Info]
+        --na_string [0]
+        */
+        throw runtime_error("Not enough arguments");
     }
 
     bool show_header = false;
@@ -421,14 +453,14 @@ void process(const vector<string> &argv,
                 filter_string_equal.push_back(make_pair(argv[p + 1].c_str(), argv[p + 2].c_str()));
                 p += 3;
             } else {
-                throw "--filter-string-equal needs two parameters";
+                throw runtime_error("--filter-string-equal needs two parameters");
             }
         } else if (argv[p].compare("--filter-double-less") == 0) {
             if (p + 2 < (argv.size() - 1)) {
                 filter_double_less.push_back(make_pair(argv[p + 1].c_str(), atof(argv[p + 2].c_str())));
                 p += 3;
             } else {
-                throw "--filter-double-less needs two parameters";
+                throw runtime_error("--filter-double-less needs two parameters");
             }
         } else if (argv[p].compare("--output-dir") == 0) {
             if (p + 1 < (argv.size() - 1)) {
@@ -438,10 +470,19 @@ void process(const vector<string> &argv,
                 }
                 p += 2;
             } else {
-                throw "--output-dir needs one parameter";
+                throw runtime_error("--output-dir needs one parameter");
             }
+        } else if (argv[p].compare("--intensity_col_sep") == 0) {
+            intensity_col_sep = argv[++p].c_str();
+            p++;
+        } else if (argv[p].compare("--intensity_col_id") == 0) {
+            intensity_col_id = argv[++p].c_str();
+            p++;
+        } else if (argv[p].compare("--na_string") == 0) {
+            na_string = argv[++p].c_str();
+            p++;
         } else {
-            throw(string("Do not know what to do with ") + argv[p]).c_str();
+            throw runtime_error((string("Do not know what to do with ") + argv[p]).c_str());
         }
     }
 
@@ -451,7 +492,7 @@ void process(const vector<string> &argv,
 
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
-        throw (string("Cannot open: ") + filename).c_str();
+        throw runtime_error((string("Check file name and path. Cannot open: ") + filename).c_str());
     }
 
     char *line = NULL;
@@ -468,7 +509,7 @@ void process(const vector<string> &argv,
         if (tab_pos) {
             free(tab_pos);
         }
-        throw(string("Cannot parse header of ") + filename).c_str();
+        throw runtime_error((string("Cannot parse header of ") + filename).c_str());
     }
 
     if (show_header) {
@@ -520,6 +561,18 @@ void process(const vector<string> &argv,
         }
     }
 
+    if (intensity_col_sep) {
+        Rprintf("Quant column separator:\n    %s\n", intensity_col_sep);
+    }
+
+    if (na_string) {
+        Rprintf("Quant column NA string (in addition to NaN):\n    %s\n", na_string);
+    }
+
+    if (intensity_col_id) {
+        Rprintf("Quant id column:\n    %s\n", intensity_col_id);
+    }
+
     //--- check header
     size_t n_cols = n_tab_pos;
 
@@ -553,6 +606,12 @@ void process(const vector<string> &argv,
         annotation_colnames->push_back(string(n));
     }
 
+    size_t intensity_col_id_ind;
+    if (intensity_col_id) {
+        utils::map_header(&intensity_col_id, 1, &intensity_col_id_ind, line, tab_pos, n_tab_pos);
+    }
+
+
     if (line) {
         free(line);
     }
@@ -576,15 +635,21 @@ void process(const vector<string> &argv,
     auto _line_new = new vector<char *>;
     auto _tab = new vector<vector<char *>>;
 
-    auto filtered = new vector<int>; // always present to filter out NaN quant
+    auto quant_vec = new vector< vector<char *> >; // vector of quant values
+    auto quant_id_vec = new vector< vector<char *> >; // vector of quant values
+    auto quant_vec_is_na = new vector< vector<bool> >; // vector of NA values
+    auto quant_vec_is_na_n = new vector< int >; // vector of NA values
+
+    vector<string*> numbers;
 
     auto do_protein = [&]() {
         for (size_t n = 0; n < _line->size(); n++) {
-            if ((*filtered)[n] == 1) {
+
+            if ((*quant_vec_is_na_n)[n] == 0) {
                 continue;
             }
 
-            auto pp = map_proteins->find((*_tab)[n][col_primary_id_ind]);
+            auto pp = map_proteins->find(string_vector_view((*_tab)[n][col_primary_id_ind]));
             size_t p;
 
             if (pp != map_proteins->end()) {
@@ -592,116 +657,154 @@ void process(const vector<string> &argv,
             } else {
                 p = annotation->size();
 
-                vector<string> a;
-                a.emplace_back((*_tab)[n][col_primary_id_ind]);
+                annotation->emplace_back(new vector<string>);
+
+                (*annotation)[p]->emplace_back((*_tab)[n][col_primary_id_ind]);
                 for (auto i : col_annotations_ind) {
-                    a.emplace_back((*_tab)[n][i]);
+                    (*annotation)[p]->emplace_back((*_tab)[n][i]);
                 }
 
-                annotation->emplace_back(a);
-
-                map_proteins->insert({string_vector_view((*annotation)[p][0].c_str()), p});
+                map_proteins->emplace(((*annotation)[p]->at(0)).c_str(), p);
             }
 
-            protein_index->push_back(p + 1);
+            for (size_t i = 0; i < (*quant_vec_is_na_n)[n]; i++) {
+                protein_index->push_back(p + 1);
+            }
         }
     };
 
+
     auto do_sample = [&]() {
+
         for (size_t n = 0; n < _line->size(); n++) {
-            if ((*filtered)[n] == 1) {
+
+            if ((*quant_vec_is_na_n)[n] == 0) {
                 continue;
             }
 
-            auto ss = map_samples->find((*_tab)[n][col_sample_ind]);
+            auto ss = map_samples->find(string_vector_view((*_tab)[n][col_sample_ind]));
+
             size_t s;
+
             if (ss != map_samples->end()) {
                 s = ss->second;
             } else {
-                s = samples->size();
-                samples->emplace_back((*_tab)[n][col_sample_ind]);
-                map_samples->insert({string_vector_view((*samples)[s].c_str()), s});
-            }
-            sample_index->push_back(s + 1);
 
-            quant->push_back(atof((*_tab)[n][col_quant_ind]));
+                s = samples->size();
+
+                samples->emplace_back(new string((*_tab)[n][col_sample_ind]));
+
+                map_samples->emplace((*samples)[s]->c_str(), s);
+
+            }
+
+            for (size_t i = 0; i < (*quant_vec_is_na_n)[n]; i++) {
+                sample_index->push_back(s + 1); // 1-based vector for R
+            }
+
+            for (size_t i = 0; i < (*quant_vec)[n].size(); i++) {
+                if (((*quant_vec_is_na)[n])[i]) {
+                    quant->push_back(atof(((*quant_vec)[n])[i]));
+                }
+            }
         }
     };
 
     auto do_ion = [&]() {
         for (size_t n = 0; n < _line->size(); n++) {
-            if ((*filtered)[n] == 1) {
+            if ((*quant_vec_is_na_n)[n] == 0) {
                 continue;
             }
 
-            string_vector_view iv((*_tab)[n][col_secondary_ids_ind[0]]);
-            for (size_t j = 1; j < n_ion_ind; j++) {
-                iv.str_vec.push_back((*_tab)[n][col_secondary_ids_ind[j]]);
-            }
-            auto ii = map_ions->find(iv);
-            size_t i;
+            for (size_t k = 0; k < (*quant_vec)[n].size(); k++) {
+                if (((*quant_vec_is_na)[n])[k]) {
 
-            if (ii != map_ions->end()) {
-                i = ii->second;
-            } else {
-                i = ions->size();
+                    string_vector_view iv((*_tab)[n][col_secondary_ids_ind[0]]);
+                    for (size_t j = 1; j < n_ion_ind; j++) {
+                        iv.str_vec.push_back((*_tab)[n][col_secondary_ids_ind[j]]);
+                    }
 
-                vector<string> a;
-                for (size_t j = 0; j < n_ion_ind; j++) {
-                    a.emplace_back((*_tab)[n][col_secondary_ids_ind[j]]);
+                    if (intensity_col_id) {
+                        iv.str_vec.push_back(((*quant_id_vec)[n])[k]);
+                    }
+                    else {
+                        iv.str_vec.push_back(numbers[k]->c_str());
+                    }
+
+                    auto ii = map_ions->find(iv);
+                    size_t i;
+
+                    if (ii != map_ions->end()) {
+                        i = ii->second;
+                    }
+                    else {
+                        i = ions->size();
+
+
+                        ions->emplace_back(new vector<string>);
+
+                        for (size_t j = 0; j < n_ion_ind; j++) {
+                            (*ions)[i]->emplace_back((*_tab)[n][col_secondary_ids_ind[j]]);
+                        }
+                        if (intensity_col_id) {
+                            (*ions)[i]->emplace_back(((*quant_id_vec)[n])[k]);
+                        }
+                        else {
+                            (*ions)[i]->emplace_back(numbers[k]->c_str());
+                        }
+
+                        for (size_t j = 0; j <= n_ion_ind; j++) { // 1 extra at the end. Needed because it now point to a
+                            iv.str_vec[j] = (*ions)[i]->at(j).c_str();
+                        }
+
+                        map_ions->emplace(iv, i);
+                    }
+
+                    ion_index->push_back(i + 1);
                 }
-                ions->emplace_back(a);
-
-                for (size_t j = 0; j < n_ion_ind; j++) {
-                    iv.str_vec[j] = (*ions)[i][j].c_str();
-                }
-
-                map_ions->insert({iv, i});
             }
-
-            ion_index->push_back(i + 1);
         }
     };
 
 
-
     #ifdef _OPENMP
-
         omp_set_dynamic(0);
-
         int no_threads = 4;
-
         omp_set_num_threads(no_threads);
-
-        Rprintf("\n%d threads used ...\n", no_threads);
-
+        Rprintf("\nUsing %d threads ...\n", no_threads);
     #else
-
-        Rprintf("Using a single CPU core...\n");
-
+        Rprintf("Using a single CPU core ...\n");
     #endif
-
-
 
     auto double_buffers = new double_buffering_file_t(fp);
 
     auto cleanup = [&]() {
+
+        for (auto& a : numbers) {
+            if (a) {
+                delete a;
+            }
+        }
+
         delete map_proteins;
         delete map_ions;
         delete map_samples;
-
-        delete filtered;
 
         delete _line;
         delete _line_new;
         delete _tab;
         fclose(fp);
         delete double_buffers;
+
+        delete quant_vec;
+        delete quant_id_vec;
+        delete quant_vec_is_na;
+        delete quant_vec_is_na_n;
     };
 
     if (double_buffers->buf_0 == NULL || double_buffers->buf_1 == NULL) {
         cleanup();
-        throw "Cannot allocate memory.";
+        throw runtime_error("Cannot allocate memory.");
     }
 
     bool memory_ok = true;
@@ -711,12 +814,25 @@ void process(const vector<string> &argv,
         swap(_line, _line_new);
 
         if (!_line->empty()) {
-            // split
-            if (filtered->size() < _line->size()) {
-                filtered->resize(_line->size());
-            }
+
             if (_tab->size() < _line->size()) {
                 _tab->resize(_line->size(), vector<char *>(n_cols, 0));
+            }
+
+            if (quant_vec->size() < _line->size()) {
+                quant_vec->resize(_line->size());
+            }
+
+            if (quant_id_vec->size() < _line->size()) {
+                quant_id_vec->resize(_line->size());
+            }
+
+            if (quant_vec_is_na->size() < _line->size()) {
+                quant_vec_is_na->resize(_line->size());
+            }
+
+            if (quant_vec_is_na_n->size() < _line->size()) {
+                quant_vec_is_na_n->resize(_line->size());
             }
 
             int line_mismatched = 0;
@@ -746,41 +862,72 @@ void process(const vector<string> &argv,
                     line_mismatched = line_no + n + 1;
                 }
 
-                (*filtered)[n] = 0;
+                (*quant_vec)[n].clear();
+                (*quant_id_vec)[n].clear();
+                (*quant_vec_is_na)[n].clear();
+                (*quant_vec_is_na_n)[n] = 0;
 
                 size_t i = 0;
                 while (i < filter_string_equal.size() && strcmp((*_tab)[n][col_filter_string_equal[i]], filter_string_equal[i].second) == 0) {
                     i++;
                 }
 
-                if (i < filter_string_equal.size()) {
-                    (*filtered)[n] = 1;
-                }
-                else {
+                if (i >= filter_string_equal.size()) {
+
+                    bool ok = true;
                     i = 0;
-                    while (i < filter_double_less.size() && (*filtered)[n] == 0) {
+                    while (i < filter_double_less.size() && ok) {
                         if (strcmp((*_tab)[n][col_filter_double_less[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_less[i]]) >= filter_double_less[i].second) { // gcc atof does not work for NaN
-                            (*filtered)[n] = 1;
+                            ok = false;
                         }
                         i++;
                     }
 
-                    if (strcmp((*_tab)[n][col_quant_ind], "NaN") == 0) {
-                        (*filtered)[n] = 1;
+                    if (ok) {
+
+                        if (intensity_col_sep) {
+                            utils::split((*_tab)[n][col_quant_ind], intensity_col_sep, &((*quant_vec)[n]));
+                            if (intensity_col_id) {
+                                utils::split((*_tab)[n][intensity_col_id_ind], intensity_col_sep, &((*quant_id_vec)[n]));
+                                if ((*quant_vec)[n].size() != (*quant_id_vec)[n].size()) {
+                                    line_mismatched = line_no + n + 1;
+                                }
+                            }
+                        }
+                        else {
+                            (*quant_vec)[n].push_back((*_tab)[n][col_quant_ind]);
+                        }
+
+                        for (auto& s : (*quant_vec)[n]) {
+
+                            if (*s != 0 && strcmp(s, "NaN") != 0 && (!na_string || strcmp(s, na_string) != 0)) {
+                                (*quant_vec_is_na)[n].push_back(true);
+                                (*quant_vec_is_na_n)[n]++;
+                            }
+                            else {
+                                (*quant_vec_is_na)[n].push_back(false);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (size_t n = 0; n < _line->size(); n++) {
+                if (numbers.size() < (*quant_vec)[n].size()) {
+                    for (auto k = numbers.size(); k < (*quant_vec)[n].size(); k++) {
+                        numbers.push_back(new string(to_string(k + 1)));
                     }
                 }
             }
 
             if (line_mismatched > 0) { // no exception in parallel regions
                 cleanup();
-                throw ("Line " + to_string(line_mismatched) + ": the number of columns does not match header.\n").c_str();
+                throw runtime_error(("Line " + to_string(line_mismatched) + ": the number of columns does not match header or quant values and ids.\n").c_str());
             }
 
             line_no += _line->size();
             for (size_t n = 0; n < _line->size(); n++) {
-                if ((*filtered)[n] == 0) {
-                    n_after_filtered++;
-                }
+                n_after_filtered += (*quant_vec_is_na_n)[n];
             }
         }
 
@@ -823,7 +970,7 @@ void process(const vector<string> &argv,
 
         if (!memory_ok) {
             cleanup();
-            throw "Cannot allocate memory.";
+            throw runtime_error("Cannot allocate memory.");
         }
 
         if (samples->size() >= print_threshold) {
@@ -831,8 +978,8 @@ void process(const vector<string> &argv,
             print_threshold = samples->size() + 20;
         }
     }
-    Rprintf("\n# lines read (excluding headers) = %d\n", line_no-1);
-    Rprintf("# lines after filtered           = %d\n\n", n_after_filtered);
+    Rprintf("\n# lines read (excluding headers)      = %d\n", line_no-1);
+    Rprintf("# quantitative values after filtering = %d\n\n", n_after_filtered);
 
     Rprintf("# samples  = %d\n", samples->size());
     Rprintf("# proteins = %d\n", annotation->size());
@@ -870,19 +1017,38 @@ SEXP iq_filter(SEXP cmd) {
     auto ion_index = new vector<int>;
     auto quant = new vector<double>;
 
-    auto annotation = new vector<vector<string>>;
+    auto annotation = new vector<vector<string>*>;
     auto col_annotation = new vector<string>;
-    auto samples = new vector<string>;
-    auto ions = new vector<vector<string>>;
+    auto samples = new vector<string*>;
+    auto ions = new vector<vector<string>*>;
 
     try {
         process(argv, protein_index, sample_index, ion_index, quant, annotation, col_annotation, samples, ions);
-    } catch (const char *msg) {
-        Rprintf("%s\n", msg);
+    } catch (exception & e) {
+        Rprintf("%s\n", e.what());
 
+        for (auto& a : (*ions)) {
+            if (a) {
+                delete a;
+            }
+        }
         delete ions;
+
+        for (auto& a : (*samples)) {
+            if (a) {
+                delete a;
+            }
+        }
         delete samples;
+
+
+        for (auto& a : (*annotation)) {
+            if (a) {
+                delete a;
+            }
+        }
         delete annotation;
+
         delete col_annotation;
         delete quant;
         delete ion_index;
@@ -892,9 +1058,28 @@ SEXP iq_filter(SEXP cmd) {
     }
 
     if (ions->size() == 0) {
+
+        for (auto& a : (*ions)) {
+            if (a) {
+                delete a;
+            }
+        }
         delete ions;
+
+        for (auto& a : (*samples)) {
+            if (a) {
+                delete a;
+            }
+        }
         delete samples;
+
+        for (auto& a : (*annotation)) {
+            if (a) {
+                delete a;
+            }
+        }
         delete annotation;
+
         delete col_annotation;
         delete quant;
         delete ion_index;
@@ -902,6 +1087,7 @@ SEXP iq_filter(SEXP cmd) {
         delete protein_index;
         return (R_NilValue);
     }
+
 
     SEXP p_index = PROTECT(Rf_allocMatrix(INTSXP, protein_index->size(), 1));
     copy(protein_index->begin(), protein_index->end(), INTEGER(p_index));
@@ -918,18 +1104,18 @@ SEXP iq_filter(SEXP cmd) {
     SEXP ion_str = PROTECT(Rf_allocMatrix(STRSXP, ions->size(), 1));
     for (size_t i = 0; i < ions->size(); i++) {
         // concatenate
-        SET_STRING_ELT(ion_str, i, Rf_mkChar(utils::concatenate(ions->at(i)).c_str()));
+        SET_STRING_ELT(ion_str, i, Rf_mkChar(utils::concatenate(*(ions->at(i))).c_str()));
     }
 
     SEXP sample_str = PROTECT(Rf_allocMatrix(STRSXP, samples->size(), 1));
     for (size_t i = 0; i < samples->size(); i++) {
-        SET_STRING_ELT(sample_str, i, Rf_mkChar(samples->at(i).c_str()));
+        SET_STRING_ELT(sample_str, i, Rf_mkChar(samples->at(i)->c_str()));
     }
 
-    SEXP ann = PROTECT(Rf_allocMatrix(STRSXP, annotation->size(), annotation->at(0).size()));
+    SEXP ann = PROTECT(Rf_allocMatrix(STRSXP, annotation->size(), annotation->at(0)->size()));
     for (size_t i = 0; i < annotation->size(); i++) {
-        for (size_t j = 0; j < annotation->at(i).size(); j++) {
-            SET_STRING_ELT(ann, i + j * annotation->size(), Rf_mkChar(annotation->at(i).at(j).c_str()));
+        for (size_t j = 0; j < annotation->at(i)->size(); j++) {
+            SET_STRING_ELT(ann, i + j * annotation->size(), Rf_mkChar(annotation->at(i)->at(j).c_str()));
         }
     }
 
@@ -975,9 +1161,27 @@ SEXP iq_filter(SEXP cmd) {
 
     UNPROTECT(13);
 
+    for (auto& a : (*ions)) {
+        if (a) {
+            delete a;
+        }
+    }
     delete ions;
+
+    for (auto& a : (*samples)) {
+        if (a) {
+            delete a;
+        }
+    }
     delete samples;
+
+    for (auto& a : (*annotation)) {
+        if (a) {
+            delete a;
+        }
+    }
     delete annotation;
+
     delete col_annotation;
     delete quant;
     delete ion_index;
@@ -1200,7 +1404,7 @@ SEXP get_list_element(SEXP list, const char *str) {
         }
     }
 
-    throw string("Cannot find list element: ") + str;
+    throw runtime_error((string("Cannot find list element: ") + str).c_str());
 }
 
 
@@ -1230,8 +1434,8 @@ SEXP iq_MaxLFQ(SEXP list) {
         samples = INTEGER(get_list_element(list, "sample_index"));
         quants = REAL(get_list_element(list, "quant"));
     }
-    catch (const char* msg) {
-        Rprintf("%s\n", msg);
+    catch (exception & e) {
+        Rprintf("%s\n", e.what());
         return (R_NilValue);
     }
 

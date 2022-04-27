@@ -14,7 +14,10 @@ fast_read(filename,
           intensity_col = "F.PeakArea",
           annotation_col = c("PG.Genes", "PG.ProteinNames"),
           filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
-          filter_double_less = c("PG.Qvalue" = "0.01", "EG.Qvalue" = "0.01"))
+          filter_double_less = c("PG.Qvalue" = "0.01", "EG.Qvalue" = "0.01"),
+          intensity_col_sep = NULL,
+          intensity_col_id = NULL,
+          na_string = "0")
 }
 \arguments{
   \item{filename}{
@@ -27,6 +30,12 @@ A long-format tab-separated text file with a primary column of protein identific
 \item{annotation_col}{Annotation columns}
 \item{filter_string_equal}{A named vector of strings. Only rows satisfying the filter are kept.}
 \item{filter_double_less}{A named vector of strings. Only rows satisfying the filter are kept. Default PG.Qvalue < 0.01 and EG.Qvalue < 0.01.}
+\item{intensity_col_sep}{A separator character when entries in the intensity column contain multiple values.}
+\item{intensity_col_id}{The column for identities of multiple quantitative values.}
+\item{na_string}{The value considered as NA.}
+}
+\details{
+When entries in the intensity column contain multiple values, this function will replicate entries in other column and the \code{secondary_id} will be appended with corresponding entries in \code{intensity_col_id} when it is provided. Otherwise, integer values 1, 2, 3, etc... will be used.
 }
 \value{
 A list is returned with following components

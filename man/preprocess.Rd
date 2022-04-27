@@ -16,7 +16,10 @@ preprocess(quant_table,
            log2_intensity_cutoff = 0,
            pdf_out = "qc-plots.pdf",
            pdf_width = 12,
-           pdf_height = 8)
+           pdf_height = 8,
+           intensity_col_sep = NULL,
+           intensity_col_id = NULL,
+           na_string = "0")
 }
 \arguments{
   \item{quant_table}{
@@ -31,6 +34,12 @@ A long-format table with a primary column of protein identification, secondary c
 \item{pdf_out}{A character string specifying the name of the PDF output. A \code{NULL} value will suppress the PDF output.}
 \item{pdf_width}{Width of the pdf output in inches.}
 \item{pdf_height}{Height of the pdf output in inches.}
+\item{intensity_col_sep}{A separator character when entries in the intensity column contain multiple values.}
+\item{intensity_col_id}{The column for identities of multiple quantitative values.}
+\item{na_string}{The value considered as NA.}
+}
+\details{
+When entries in the intensity column contain multiple values, this function will replicate entries in other column and the \code{secondary_id} will be appended with corresponding entries in \code{intensity_col_id} when it is provided. Otherwise, integer values 1, 2, 3, etc... will be used.
 }
 \value{
 A data frame is returned with following components
