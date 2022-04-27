@@ -1,4 +1,4 @@
-## Ver 1.9.6
+## Version 1.9.6
 
 - add support for multiple quantitative values per table cell, for examples fragment intensities separated by ';' in DIA-NN output.
 
@@ -12,38 +12,37 @@
 
 - better exception handling
 
-=======
-## Ver 1.9.3
+## Version 1.9.3
 
 - Use RcppEigen
 
-## Ver 1.9.1
+## Version 1.9.1
 
 - Revise code (change order of header files) to support OpenMP in clang 13.0.0.
 
 - fix typo: medpolish to median_polish
 
-## Ver 1.9
+## Version 1.9
 
 - rchk: fix protection stack imbalance.
 
-## Ver 1.8
+## Version 1.8
 
 - Revise code to get rid of rchk complaints.
 
-## Ver 1.7
+## Version 1.7
 
 - Remove the R_ToplevelExec declaration to fix a compilation problem on Solaris.
 
-## Ver 1.6
+## Version 1.6
 
 - Use _OPENMP to safeguard against MacOS lack of OpenMP support.
 
-## Ver 1.5
+## Version 1.5
 
 - Speedup with C++ implementation
 
-## Ver 1.4
+## Version 1.4
 
 - Add references.
 - Add size of pdf of QC.
