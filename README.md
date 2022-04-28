@@ -265,7 +265,7 @@ identical(colnames(result$estimate), colnames(result_fastest$estimate))
 
 ##### Oneliner
 
-Finally, the data can be processed in one statement. Note that the parameter `normalization` is not a logical (`TRUE`/`FALSE`), but a string `none` or `median` (default). This is to support different normalization methods in the future.
+Finally, the data can be processed in one statement. Note that the parameter `normalization` is not a logical (`TRUE` or `FALSE`), but a string `"none"` or `"median"` (default). This is to support different normalization methods in the future.
 
 ```
 process_long_format("spikeins-diann.tsv", "spikeins-diann-out.tsv", 
