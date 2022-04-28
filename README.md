@@ -31,7 +31,7 @@ library("iq")
 
 See [a recent example](https://cran.r-project.org/web/packages/iq/vignettes/iq-fast.html) for processing a Spectronaut output. 
 
-Or [an older vignette](https://cran.r-project.org/web/packages/iq/vignettes/iq.html) with some visualization.
+Or [an older vignette](https://cran.r-project.org/web/packages/iq/vignettes/iq.html) for processing output from Spectronaut, OpenSWATH, MaxQuant and with some visualization.
 
 
 ### Examples
@@ -48,7 +48,14 @@ Download [DIA-NN output report.zip](https://github.com/tvpham/iq/releases/downlo
 
 A protein group report for downstream analysis can be obtained with a single statement in R
 ```
+library(iq)
 process_long_format("report.tsv", "report-pg.tsv")
+```
+
+Usually, the user wants to include additional annotation columns in the final report. This is possible by specifying the `annotation_col` parameter.
+```
+process_long_format("report.tsv", "report-pg-annotated.tsv",
+                    annotation_col = c("Protein.Ids", "Protein.Names", "Genes"))
 ```
 
 We will load the result file `report-pg.tsv` to check the quantitative values of the spike-in proteins. For convenience, we will use the spike-in protein names instead of the protein group names.
@@ -84,7 +91,7 @@ Here is the ground truth for proteins in Mix 1 (P02754, P80025, P00921, P00366, 
 
 ```
 matplot(t(pg[spike_ins[1:5], 2:25]), type = 'b', col = 1:5 , pch=19, lwd = 3,
-        ylab="log2 MaxLFQ", main = "Mix 1", xlab = "Sample")
+        ylab="log2 MaxLFQ", main = "Mix 1", xlab = "8 samples x 3 replicates")
 legend("topleft", legend = spike_ins[1:5], col = 1:5, pch=19, bty = "n")
 ```
 ![Mix 1](images/spikein-mix1.svg)
@@ -108,7 +115,7 @@ Here is the ground truth of proteins in Mix 2 (P61823, P02789, P12799, P02676, P
 
 ```
 matplot(t(pg[spike_ins[6:10], 2:25]), type = 'b', col = 1:5 , pch=19, lwd = 3,
-        ylab="log2 MaxLFQ", main = "Mix 2", xlab = "Sample")
+        ylab="log2 MaxLFQ", main = "Mix 2", xlab = "8 samples x 3 replicates")
 legend("topright", legend = spike_ins[6:10], col = 1:5, pch=19, bty = "n")
 ```
 ![Mix 2](images/spikein-mix2.svg)
@@ -130,7 +137,7 @@ Here is the ground truth of proteins in Mix 3 (P02666, P68082).
 ```
 
 matplot(t(pg[spike_ins[11:12], 2:25]), type = 'b', col = 1:6 , pch=19, lwd = 3,
-        ylab="log2 MaxLFQ", main = "3", xlab = "Sample")
+        ylab="log2 MaxLFQ", main = "Mix 3", xlab = "8 samples x 3 replicates")
 legend("topleft", legend = spike_ins[11:12], col = 1:2, pch=19, bty = "n")
 ```
 ![Mix 3](images/spikein-mix3.svg)
@@ -142,7 +149,7 @@ In this mix, the protein concentration increases 4 fold from sample 1 to sample 
 ```
 set.seed(0)
 matplot(t(pg[sample(1:nrow(pg), 12), 2:25]), type = 'b', col = 1:6 , pch=19, lwd = 3,
-        ylab="log2 MaxLFQ", main = "Random 12 proteins", xlab = "Sample")
+        ylab="log2 MaxLFQ", main = "Random 12 proteins", xlab = "8 samples x 3 replicates")
 ```
 ![Random 12](images/spikein-random.svg)
 
