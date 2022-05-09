@@ -52,13 +52,20 @@ library(iq)
 process_long_format("report.tsv", "report-pg.tsv")
 ```
 
-Usually, the user wants to include additional annotation columns in the final report. This is possible by specifying the `annotation_col` parameter.
+As an aside, usually the user wants to include additional annotation columns in the final report. This is possible by specifying the `annotation_col` parameter.
 ```
 process_long_format("report.tsv", "report-pg-annotated.tsv",
                     annotation_col = c("Protein.Ids", "Protein.Names", "Genes"))
 ```
 
-We will load the result file `report-pg.tsv` to check the quantitative values of the spike-in proteins. For convenience, we will use the spike-in protein names instead of the protein group names.
+Also, by default, we filter the report at 1% run-sepcific FDR at both precursor level and protein group level. To filter global FDR (available with a recent version of DIA-NN), use the parameter `filter_double_less`.
+```
+process_long_format("report.tsv", "report-pg-global.tsv", 
+                    annotation_col = c("Protein.Ids", "Protein.Names", "Genes"),
+                    filter_double_less = c("Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"))  
+```
+  
+We continue with loading the result file `report-pg.tsv` to check the quantitative values of the spike-in proteins. For convenience, we will use the spike-in protein names instead of the protein group names.
 
 ```
 pg <- read.delim("report-pg.tsv")
