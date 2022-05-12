@@ -49,18 +49,18 @@ Download [DIA-NN output report.zip](https://github.com/tvpham/iq/releases/downlo
 A protein group report for downstream analysis can be obtained with a single statement in R
 ```
 library(iq)
-process_long_format("report.tsv", "report-pg.tsv")
+process_long_format("report.tsv", output_filename = "report-pg.tsv")
 ```
 
 As an aside, usually the user wants to include additional annotation columns in the final report. This is possible by specifying the `annotation_col` parameter.
 ```
-process_long_format("report.tsv", "report-pg-annotated.tsv",
+process_long_format("report.tsv", output_filename = "report-pg-annotated.tsv",
                     annotation_col = c("Protein.Names", "Genes"))
 ```
 
 Also, by default, we filter the report at 1% run-sepcific FDR at both precursor level and protein group level. To filter global FDR (available with a recent version of DIA-NN), use the parameter `filter_double_less`.
 ```
-process_long_format("report.tsv", "report-pg-global.tsv", 
+process_long_format("report.tsv", output_filename = "report-pg-global.tsv", 
                     annotation_col = c("Protein.Names", "Genes"),
                     filter_double_less = c("Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"))  
 ```
@@ -275,7 +275,7 @@ identical(colnames(result$estimate), colnames(result_fastest$estimate))
 Finally, the data can be processed in one statement. Note that the parameter `normalization` is not a logical (`TRUE` or `FALSE`), but a string `"none"` or `"median"` (default). This is to support different normalization methods in the future.
 
 ```
-process_long_format("spikeins-diann.tsv", "spikeins-diann-out.tsv", 
+process_long_format("spikeins-diann.tsv", output_filename = "spikeins-diann-out.tsv", 
                     filter_double_less = NULL, 
                     normalization = "none")
 ```
