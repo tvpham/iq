@@ -458,14 +458,7 @@ extract_annotation <- function(protein_ids,
 
     index <- match(all_columns, colnames(quant_table))
 
-    if (any(index == 0)) {
-        stop(paste0("The input table has no column: ", all_columns[which(index == 0)[1]]))
-    }
-
     index <- match(protein_ids, quant_table[, primary_id])
-    if (any(index == 0)) {
-        stop(paste0("Cannot find ", protein_ids[which(index == 0)[1]]))
-    }
 
     tab <- quant_table[index, c(primary_id, annotation_columns)]
     rownames(tab) <- protein_ids
