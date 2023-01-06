@@ -8,7 +8,7 @@
 #
 # Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, Bioinformatics 2020 Apr 15;36(8):2611-2613.
 #
-# Software version: 1.9.6
+# Software version: 1.9.7
 #
 #########################################################################
 
@@ -106,11 +106,19 @@ preprocess <- function(quant_table,
         d <- d[d$quant > log2_intensity_cutoff,]
     }
 
-    dl <- list()
+    if (!is.null(pdf_out)) {
+        dl <- list()
+    }
+
     m <- rep(NA, length(samples))
+
     for (i in 1:length(samples)) {
-        dl[i] <- list(d[d$sample_list == samples[i], "quant"])
-        m[i] <- median(dl[[i]], na.rm = TRUE)
+        v <- d$quant[d$sample_list == samples[i]]
+        m[i] <- median(v, na.rm = TRUE)
+
+        if (!is.null(pdf_out)) {
+            dl[i] <- list(v)
+        }
     }
 
     if (!is.null(pdf_out)) {
@@ -118,10 +126,12 @@ preprocess <- function(quant_table,
 
         boxplot(dl,
                 names = as.character(samples),
+                main = "Boxplot of fragment intensities per sample",
+                ylab = "log2 intensity",
+                outline = FALSE,
                 col = "steelblue",
                 whisklty = 1,
                 staplelty = 0,
-                outpch = ".",
                 las = 2)
     }
 
@@ -141,18 +151,18 @@ preprocess <- function(quant_table,
             message("Barplotting after normalization ...\n")
 
             dl <- list()
-            m <- rep(NA, length(samples))
             for (i in 1:length(samples)) {
-                dl[i] <- list(d[d$sample_list == samples[i], "quant"])
-                m[i] <- median(dl[[i]], na.rm = TRUE)
+                dl[i] <- list(d$quant[d$sample_list == samples[i]])
             }
 
             boxplot(dl,
                     names = as.character(samples),
+                    main = "Boxplot of fragment intensities per sample",
+                    ylab = "log2 intensity",
+                    outline = FALSE,
                     col = "steelblue",
                     whisklty = 1,
                     staplelty = 0,
-                    outpch = ".",
                     las = 2)
         }
     }
@@ -163,7 +173,6 @@ preprocess <- function(quant_table,
 
     return(d)
 }
-
 
 create_protein_list <- function(preprocessed_data) {
 
@@ -222,6 +231,8 @@ create_protein_list <- function(preprocessed_data) {
             p_list[[as.character(proteins[i])]] <- m
         }
     }
+
+    message("Completed.")
 
     return(p_list)
 }
@@ -326,7 +337,6 @@ maxLFQ <- function(X) {
                      intercept = FALSE)
 
         return(res$coefficients[1:N])
-
     }
 
     for (i in 1:N) {
@@ -346,7 +356,6 @@ maxLFQ <- function(X) {
         }
     }
 
-
     if (all(is.na(w))) {
         return(list(estimate = w, annotation = "NA"))
     } else {
@@ -359,7 +368,6 @@ maxLFQ <- function(X) {
         }
     }
 }
-
 
 median_polish <- function(X) {
     out  <-  medpolish(X, na.rm = TRUE, trace.iter = FALSE)
@@ -431,7 +439,6 @@ create_protein_table <- function(protein_list, method = "maxLFQ", ...) {
             thres_display <- i + nrow(tab) / 20
         }
 
-
         if (method == "maxLFQ") {
             out <- maxLFQ(protein_list[[i]], ...)
         } else if (method == "median_polish") {
@@ -446,6 +453,9 @@ create_protein_table <- function(protein_list, method = "maxLFQ", ...) {
         tab[i,] <- out$estimate
         annotation[i] <- out$annotation
     }
+
+    message("Completed.")
+
     return(list(estimate = tab, annotation = annotation))
 }
 
@@ -538,7 +548,6 @@ process_wide_format <- function(input_filename,
         res$estimate <- res$estimate[unique_values, ]
 
     } else {
-
 
         # set up result tables
         res <- list(estimate = matrix(NA, nrow = length(unique_values), ncol = length(quant_columns)))

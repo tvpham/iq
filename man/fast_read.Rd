@@ -14,7 +14,9 @@ fast_read(filename,
           intensity_col = "F.PeakArea",
           annotation_col = c("PG.Genes", "PG.ProteinNames"),
           filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
+          filter_string_not_equal = NULL,
           filter_double_less = c("PG.Qvalue" = "0.01", "EG.Qvalue" = "0.01"),
+          filter_double_greater = NULL,
           intensity_col_sep = NULL,
           intensity_col_id = NULL,
           na_string = "0")
@@ -28,8 +30,10 @@ A long-format tab-separated text file with a primary column of protein identific
 \item{sample_id}{Unique values in this column form the list of samples.}
 \item{intensity_col}{The column for intensities.}
 \item{annotation_col}{Annotation columns}
-\item{filter_string_equal}{A named vector of strings. Only rows satisfying the filter are kept.}
-\item{filter_double_less}{A named vector of strings. Only rows satisfying the filter are kept. Default PG.Qvalue < 0.01 and EG.Qvalue < 0.01.}
+\item{filter_string_equal}{A named vector of strings. Only rows satisfying the condition are kept.}
+\item{filter_string_not_equal}{A named vector of strings. Only rows satisfying the condition are kept.}
+\item{filter_double_less}{A named vector of strings. Only rows satisfying the condition are kept. Default PG.Qvalue < 0.01 and EG.Qvalue < 0.01.}
+\item{filter_double_greater}{A named vector of strings. Only rows satisfying the condition are kept.}
 \item{intensity_col_sep}{A separator character when entries in the intensity column contain multiple values.}
 \item{intensity_col_id}{The column for identities of multiple quantitative values.}
 \item{na_string}{The value considered as NA.}

@@ -365,7 +365,7 @@ We also implement the topN method, the MeanInt method, and the median polish met
 output <- iq::create_protein_table(protein_list)
 
 # median polish
-output <- iq::create_protein_table(protein_list, method = "medpolish")
+output <- iq::create_protein_table(protein_list, method = "median_polish")
 
 # top 3
 output <- iq::create_protein_table(protein_list, method = "topN", N = 3)

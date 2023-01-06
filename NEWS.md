@@ -1,3 +1,11 @@
+## Version 1.9.7
+
+- fix a bug in extract_annotation (thanks to Luc and AT-LAB, Thuyloi University, Vietnam)
+- add two filtering options in `fast_read` for not equal strings and numerical greater than.
+- fix typo in vignettes
+- boxplot in `fast_preprocess` and `process_long_format` is optional to reduce memory usage for very large datasets.
+- add an option to count the number of fragments and peptides in `process_long_format`.
+
 ## Version 1.9.6
 
 - add support for multiple quantitative values per table cell, for examples fragment intensities separated by ';' in DIA-NN output.

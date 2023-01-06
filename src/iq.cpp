@@ -11,7 +11,7 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 1.9.6
+Software version: 1.9.7
 
 #########################################################################
 */
@@ -41,7 +41,6 @@ Software version: 1.9.6
 #include <R_ext/Utils.h>
 #include <Rinternals.h>
 
-
 extern "C" SEXP iq_filter(SEXP);
 extern "C" SEXP iq_MaxLFQ(SEXP);
 
@@ -53,7 +52,6 @@ using namespace std;
 #define BUFFER_SIZE 4096
 
 #define FREAD_BUFSIZE 2097152
-
 
 class utils {
 public:
@@ -74,7 +72,7 @@ public:
         return total;
     }
 
-    // Map the column name to index value
+    // map the column name to index value
     static void map_header(const char **column_names, size_t len, size_t *index, char *line, size_t *tab_pos, size_t n_tab_pos) {
         for (size_t i = 0; i < len; i++) {
             size_t j = 0;
@@ -195,7 +193,6 @@ public:
 
 };
 
-
 class string_vector_view {
    public:
     vector<const char *> str_vec;
@@ -234,7 +231,6 @@ struct hash_fn {
         return hash_val;
     }
 };
-
 
 class double_buffering_file_t {
     FILE *f;
@@ -375,7 +371,10 @@ void process(const vector<string> &argv,
     vector<const char *> col_annotations;
 
     vector<pair<const char *, const char *>> filter_string_equal;
+    vector<pair<const char*, const char*>> filter_string_not_equal;
+
     vector<pair<const char *, double>> filter_double_less;
+    vector<pair<const char*, double>> filter_double_greater;
 
     const char* intensity_col_sep = 0;
     const char* intensity_col_id = 0;
@@ -402,6 +401,11 @@ void process(const vector<string> &argv,
         --intensity_col_sep [;]
         --intensity_col_id [Fragment.Info]
         --na_string [0]
+        */
+        /*
+        1.9.7
+        --filter-string-not-equal
+        --filter-double-greater
         */
         throw runtime_error("Not enough arguments");
     }
@@ -446,7 +450,9 @@ void process(const vector<string> &argv,
             }
         } else if (argv[p].compare("--clear-all-filters") == 0) {
             filter_string_equal.clear();
+            filter_string_not_equal.clear();
             filter_double_less.clear();
+            filter_double_greater.clear();
             p++;
         } else if (argv[p].compare("--filter-string-equal") == 0) {
             if (p + 2 < (argv.size() - 1)) {
@@ -455,12 +461,30 @@ void process(const vector<string> &argv,
             } else {
                 throw runtime_error("--filter-string-equal needs two parameters");
             }
+        }
+        else if (argv[p].compare("--filter-string-not-equal") == 0) {
+            if (p + 2 < (argv.size() - 1)) {
+                filter_string_not_equal.push_back(make_pair(argv[p + 1].c_str(), argv[p + 2].c_str()));
+                p += 3;
+            }
+            else {
+                throw runtime_error("--filter-string-not-equal needs two parameters");
+            }
         } else if (argv[p].compare("--filter-double-less") == 0) {
             if (p + 2 < (argv.size() - 1)) {
                 filter_double_less.push_back(make_pair(argv[p + 1].c_str(), atof(argv[p + 2].c_str())));
                 p += 3;
             } else {
                 throw runtime_error("--filter-double-less needs two parameters");
+            }
+        }
+        else if (argv[p].compare("--filter-double-greater") == 0) {
+            if (p + 2 < (argv.size() - 1)) {
+                filter_double_greater.push_back(make_pair(argv[p + 1].c_str(), atof(argv[p + 2].c_str())));
+                p += 3;
+            }
+            else {
+                throw runtime_error("--filter-double-greater needs two parameters");
             }
         } else if (argv[p].compare("--output-dir") == 0) {
             if (p + 1 < (argv.size() - 1)) {
@@ -547,6 +571,7 @@ void process(const vector<string> &argv,
         }
         Rprintf("\n");
     }
+    
     if (!filter_string_equal.empty()) {
         Rprintf("String equal filter(s):\n");
         for (auto str : filter_string_equal) {
@@ -554,10 +579,24 @@ void process(const vector<string> &argv,
         }
     }
 
+    if (!filter_string_not_equal.empty()) {
+        Rprintf("String not equal filter(s):\n");
+        for (auto str : filter_string_not_equal) {
+            Rprintf("    %s != %s\n", str.first, str.second);
+        }
+    }
+
     if (!filter_double_less.empty()) {
         Rprintf("Double less filter(s):\n");
         for (auto str : filter_double_less) {
             Rprintf("    %s < %f\n", str.first, str.second);
+        }
+    }
+    
+    if (!filter_double_greater.empty()) {
+        Rprintf("Double greater filter(s):\n");
+        for (auto str : filter_double_greater) {
+            Rprintf("    %s > %f\n", str.first, str.second);
         }
     }
 
@@ -596,9 +635,19 @@ void process(const vector<string> &argv,
         utils::map_header(&(filter_string_equal[i].first), 1, &(col_filter_string_equal[i]), line, tab_pos, n_tab_pos);
     }
 
+    vector<size_t> col_filter_string_not_equal(filter_string_not_equal.size());
+    for (size_t i = 0; i < filter_string_not_equal.size(); i++) {
+        utils::map_header(&(filter_string_not_equal[i].first), 1, &(col_filter_string_not_equal[i]), line, tab_pos, n_tab_pos);
+    }
+
     vector<size_t> col_filter_double_less(filter_double_less.size());
     for (size_t i = 0; i < filter_double_less.size(); i++) {
         utils::map_header(&(filter_double_less[i].first), 1, &(col_filter_double_less[i]), line, tab_pos, n_tab_pos);
+    }
+
+    vector<size_t> col_filter_double_greater(filter_double_greater.size());
+    for (size_t i = 0; i < filter_double_greater.size(); i++) {
+        utils::map_header(&(filter_double_greater[i].first), 1, &(col_filter_double_greater[i]), line, tab_pos, n_tab_pos);
     }
 
     annotation_colnames->push_back(string(col_primary_id));
@@ -667,12 +716,11 @@ void process(const vector<string> &argv,
                 map_proteins->emplace(((*annotation)[p]->at(0)).c_str(), p);
             }
 
-            for (size_t i = 0; i < (*quant_vec_is_na_n)[n]; i++) {
+            for (int i = 0; i < (*quant_vec_is_na_n)[n]; i++) {
                 protein_index->push_back(p + 1);
             }
         }
     };
-
 
     auto do_sample = [&]() {
 
@@ -695,10 +743,9 @@ void process(const vector<string> &argv,
                 samples->emplace_back(new string((*_tab)[n][col_sample_ind]));
 
                 map_samples->emplace((*samples)[s]->c_str(), s);
-
             }
 
-            for (size_t i = 0; i < (*quant_vec_is_na_n)[n]; i++) {
+            for (int i = 0; i < (*quant_vec_is_na_n)[n]; i++) {
                 sample_index->push_back(s + 1); // 1-based vector for R
             }
 
@@ -739,7 +786,6 @@ void process(const vector<string> &argv,
                     }
                     else {
                         i = ions->size();
-
 
                         ions->emplace_back(new vector<string>);
 
@@ -874,38 +920,57 @@ void process(const vector<string> &argv,
 
                 if (i >= filter_string_equal.size()) {
 
-                    bool ok = true;
                     i = 0;
-                    while (i < filter_double_less.size() && ok) {
-                        if (strcmp((*_tab)[n][col_filter_double_less[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_less[i]]) >= filter_double_less[i].second) { // gcc atof does not work for NaN
-                            ok = false;
-                        }
+                    while (i < filter_string_not_equal.size() && strcmp((*_tab)[n][col_filter_string_not_equal[i]], filter_string_not_equal[i].second) != 0) {
                         i++;
                     }
 
-                    if (ok) {
+                    if (i >= filter_string_not_equal.size()) {
 
-                        if (intensity_col_sep) {
-                            utils::split((*_tab)[n][col_quant_ind], intensity_col_sep, &((*quant_vec)[n]));
-                            if (intensity_col_id) {
-                                utils::split((*_tab)[n][intensity_col_id_ind], intensity_col_sep, &((*quant_id_vec)[n]));
-                                if ((*quant_vec)[n].size() != (*quant_id_vec)[n].size()) {
-                                    line_mismatched = line_no + n + 1;
+                        bool ok = true;
+                        i = 0;
+                        while (i < filter_double_less.size() && ok) {
+                            if (strcmp((*_tab)[n][col_filter_double_less[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_less[i]]) >= filter_double_less[i].second) { // gcc atof does not work for NaN
+                                ok = false;
+                            }
+                            i++;
+                        }
+
+                        if (ok) {
+
+                            i = 0;
+                            while (i < filter_double_greater.size() && ok) {
+                                if (strcmp((*_tab)[n][col_filter_double_greater[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_greater[i]]) <= filter_double_greater[i].second) { // gcc atof does not work for NaN
+                                    ok = false;
                                 }
+                                i++;
                             }
-                        }
-                        else {
-                            (*quant_vec)[n].push_back((*_tab)[n][col_quant_ind]);
-                        }
 
-                        for (auto& s : (*quant_vec)[n]) {
+                            if (ok) {
 
-                            if (*s != 0 && strcmp(s, "NaN") != 0 && (!na_string || strcmp(s, na_string) != 0)) {
-                                (*quant_vec_is_na)[n].push_back(true);
-                                (*quant_vec_is_na_n)[n]++;
-                            }
-                            else {
-                                (*quant_vec_is_na)[n].push_back(false);
+                                if (intensity_col_sep) {
+                                    utils::split((*_tab)[n][col_quant_ind], intensity_col_sep, &((*quant_vec)[n]));
+                                    if (intensity_col_id) {
+                                        utils::split((*_tab)[n][intensity_col_id_ind], intensity_col_sep, &((*quant_id_vec)[n]));
+                                        if ((*quant_vec)[n].size() != (*quant_id_vec)[n].size()) {
+                                            line_mismatched = line_no + n + 1;
+                                        }
+                                    }
+                                }
+                                else {
+                                    (*quant_vec)[n].push_back((*_tab)[n][col_quant_ind]);
+                                }
+
+                                for (auto& s : (*quant_vec)[n]) {
+
+                                    if (*s != 0 && strcmp(s, "NaN") != 0 && (!na_string || strcmp(s, na_string) != 0)) {
+                                        (*quant_vec_is_na)[n].push_back(true);
+                                        (*quant_vec_is_na_n)[n]++;
+                                    }
+                                    else {
+                                        (*quant_vec_is_na)[n].push_back(false);
+                                    }
+                                }
                             }
                         }
                     }
@@ -930,7 +995,6 @@ void process(const vector<string> &argv,
                 n_after_filtered += (*quant_vec_is_na_n)[n];
             }
         }
-
 
         if (double_buffers->eof) {  // wrapping up the last round
             do_ion();
@@ -1041,7 +1105,6 @@ SEXP iq_filter(SEXP cmd) {
         }
         delete samples;
 
-
         for (auto& a : (*annotation)) {
             if (a) {
                 delete a;
@@ -1087,7 +1150,6 @@ SEXP iq_filter(SEXP cmd) {
         delete protein_index;
         return (R_NilValue);
     }
-
 
     SEXP p_index = PROTECT(Rf_allocMatrix(INTSXP, protein_index->size(), 1));
     copy(protein_index->begin(), protein_index->end(), INTEGER(p_index));
@@ -1135,7 +1197,6 @@ SEXP iq_filter(SEXP cmd) {
     SET_VECTOR_ELT(quant_tab, 2, i_index);
     SET_VECTOR_ELT(quant_tab, 3, q);
 
-
     SEXP quant_tab_names = PROTECT(Rf_allocVector(STRSXP, 4));
     SET_STRING_ELT(quant_tab_names, 0, Rf_mkChar("protein_list"));
     SET_STRING_ELT(quant_tab_names, 1, Rf_mkChar("sample_list"));
@@ -1149,7 +1210,6 @@ SEXP iq_filter(SEXP cmd) {
     SET_VECTOR_ELT(vec, 1, ann);
     SET_VECTOR_ELT(vec, 2, sample_str);
     SET_VECTOR_ELT(vec, 3, ion_str);
-
 
     SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
     SET_STRING_ELT(names, 0, Rf_mkChar("quant_table"));
@@ -1191,14 +1251,12 @@ SEXP iq_filter(SEXP cmd) {
     return vec;
 }
 
-
 //------------------------------ MaxLFQ -------------------------------------
 
 using Eigen::FullPivHouseholderQR;
 using Eigen::HouseholderQR;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
-
 
 class ion_table {
 
@@ -1420,7 +1478,6 @@ int tp_check() {
 // [[Rcpp::export]]
 SEXP iq_MaxLFQ(SEXP list) {
 
-
     int stop_sig = 0;
 
     int* proteins;
@@ -1495,7 +1552,6 @@ SEXP iq_MaxLFQ(SEXP list) {
 
     int thres_display = 0;
 
-
     #ifdef _OPENMP
 
         omp_set_dynamic(0);
@@ -1508,7 +1564,7 @@ SEXP iq_MaxLFQ(SEXP list) {
 
         omp_set_num_threads(no_threads);
 
-        Rprintf("%d thread(s) available...\n", no_threads);
+        Rprintf("Using %d threads...\n", no_threads);
 
     #else
 
@@ -1516,12 +1572,11 @@ SEXP iq_MaxLFQ(SEXP list) {
 
     #endif
 
-
-
     #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < n_proteins; i++) {
-        if (stop_sig)
+        if (stop_sig) {
             continue;
+        }
 
         int thread_id = 0;
 

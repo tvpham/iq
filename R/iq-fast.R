@@ -8,7 +8,7 @@
 #
 # Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, Bioinformatics 2020 Apr 15;36(8):2611-2613.
 #
-# Software version: 1.9.6
+# Software version: 1.9.7
 #
 #########################################################################
 
@@ -19,7 +19,9 @@ fast_read <- function(filename,
                       intensity_col = "F.PeakArea",
                       annotation_col = c("PG.Genes", "PG.ProteinNames"),
                       filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
+                      filter_string_not_equal = NULL,
                       filter_double_less = c("PG.Qvalue" = "0.01", "EG.Qvalue" = "0.01"),
+                      filter_double_greater = NULL,
                       intensity_col_sep = NULL,
                       intensity_col_id = NULL,
                       na_string = "0") {
@@ -39,9 +41,21 @@ fast_read <- function(filename,
         }
     }
 
+    if (!is.null(filter_string_not_equal)) {
+        for (f in names(filter_string_not_equal)) {
+            cmd <- paste0(cmd, " --filter-string-not-equal ", f, " ", filter_string_not_equal[f])
+        }
+    }
+
     if (!is.null(filter_double_less)) {
         for (f in names(filter_double_less)) {
             cmd <- paste0(cmd, " --filter-double-less ", f, " ", filter_double_less[f])
+        }
+    }
+
+    if (!is.null(filter_double_greater)) {
+        for (f in names(filter_double_greater)) {
+            cmd <- paste0(cmd, " --filter-double-greater ", f, " ", filter_double_greater[f])
         }
     }
 
@@ -103,7 +117,6 @@ fast_MaxLFQ <- function(norm_data, row_names = NULL, col_names = NULL) {
     colnames(ret$estimate) <- s[as.integer(colnames(ret$estimate))]
 
     return(ret)
-
 }
 
 fast_preprocess <- function(quant_table,
@@ -111,7 +124,8 @@ fast_preprocess <- function(quant_table,
                             log2_intensity_cutoff = 0,
                             pdf_out = "qc-plots-fast.pdf",
                             pdf_width = 12,
-                            pdf_height = 8) {
+                            pdf_height = 8,
+                            show_boxplot = TRUE) {
 
     if (!is.null(pdf_out)) {
         pdf(pdf_out, pdf_width, pdf_height)
@@ -139,23 +153,32 @@ fast_preprocess <- function(quant_table,
         d$id <- d$id[selected]
     }
 
-
-    dl <- list()
-    m <- rep(NA, length(samples))
-    for (i in 1:length(samples)) {
-      dl[i] <- list(d$quant[d$sample_list == samples[i]])
-      m[i] <- median(dl[[i]], na.rm = TRUE)
+    if (!is.null(pdf_out) && show_boxplot) {
+        dl <- list()
     }
 
-    if (!is.null(pdf_out)) {
+    m <- rep(NA, length(samples))
+
+    for (i in 1:length(samples)) {
+        v <- d$quant[d$sample_list == samples[i]]
+        m[i] <- median(v, na.rm = TRUE)
+
+        if (!is.null(pdf_out) && show_boxplot) {
+            dl[i] <- list(v)
+        }
+    }
+
+    if (!is.null(pdf_out) && show_boxplot) {
         message("Barplotting raw data ...\n")
 
         boxplot(dl,
             names = as.character(samples),
+            main = "Boxplot of fragment intensities per sample",
+            ylab = "log2 intensity",
+            outline = FALSE,
             col = "steelblue",
             whisklty = 1,
             staplelty = 0,
-            outpch = ".",
             las = 2)
     }
 
@@ -170,22 +193,23 @@ fast_preprocess <- function(quant_table,
             d$quant[idx] <- d$quant[idx] + f[i]
         }
 
-        if (!is.null(pdf_out)) {
+        if (!is.null(pdf_out) && show_boxplot) {
             message("Barplotting after normalization ...\n")
 
             dl <- list()
-            m <- rep(NA, length(samples))
+
             for (i in 1:length(samples)) {
                 dl[i] <- list(d$quant[d$sample_list == samples[i]])
-                m[i] <- median(dl[[i]], na.rm = TRUE)
             }
 
             boxplot(dl,
                     names = as.character(samples),
+                    main = "Boxplot of fragment intensities per sample",
+                    ylab = "log2 intensity",
+                    outline = FALSE,
                     col = "steelblue",
                     whisklty = 1,
                     staplelty = 0,
-                    outpch = ".",
                     las = 2)
         }
     }
@@ -205,7 +229,9 @@ process_long_format <- function(input_filename,
                                 intensity_col = "Fragment.Quant.Corrected",
                                 annotation_col = NULL,
                                 filter_string_equal = NULL,
+                                filter_string_not_equal = NULL,
                                 filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.01"),
+                                filter_double_greater = NULL,
                                 intensity_col_sep = ";",
                                 intensity_col_id = NULL,
                                 na_string = "0",
@@ -213,7 +239,9 @@ process_long_format <- function(input_filename,
                                 log2_intensity_cutoff = 0,
                                 pdf_out = "qc-plots.pdf",
                                 pdf_width = 12,
-                                pdf_height = 8) {
+                                pdf_height = 8,
+                                show_boxplot = TRUE,
+                                peptide_extractor = NULL) {
 
 
     if (normalization == "median") {
@@ -232,7 +260,9 @@ process_long_format <- function(input_filename,
                         intensity_col_sep = intensity_col_sep,
                         annotation_col = annotation_col,
                         filter_string_equal = filter_string_equal,
-                        filter_double_less = filter_double_less)
+                        filter_string_not_equal = filter_string_not_equal,
+                        filter_double_less = filter_double_less,
+                        filter_double_greater = filter_double_greater)
 
     if (!is.null(iq_dat)) {
         iq_norm_data <- fast_preprocess(iq_dat$quant_table,
@@ -240,30 +270,66 @@ process_long_format <- function(input_filename,
                                         log2_intensity_cutoff = log2_intensity_cutoff,
                                         pdf_out = pdf_out,
                                         pdf_width = pdf_width,
-                                        pdf_height = pdf_height)
+                                        pdf_height = pdf_height,
+                                        show_boxplot = show_boxplot)
 
         res <- fast_MaxLFQ(iq_norm_data,
                            row_names = iq_dat$protein[, 1],
                            col_names = iq_dat$sample)
 
+
+        if (!is.null(peptide_extractor)) {
+            message("Calculating fragment statistics... ")
+            s <- matrix(0, nrow = nrow(iq_dat$protein), ncol = 2)
+            colnames(s) <- c("n_fragments", "n_peptides")
+
+            thres_display <- nrow(s) / 20
+
+            for (i in 1:nrow(s)) {
+
+                if (i > thres_display) {
+                    message(format(i * 100 / nrow(s), digits = 2), "%")
+                    thres_display <- i + nrow(s) / 20
+                }
+
+                ind <- unique(iq_dat$quant_table$id[iq_dat$quant_table$protein_list == i])
+                frags <- iq_dat$ion[ind]
+                s[i, 1] <- length(frags)
+                frags <- unique(peptide_extractor(frags))
+                s[i, 2] <- length(frags)
+            }
+            message("Completed. ")
+        }
+
         message("Writing to: ", output_filename)
 
         if (is.null(annotation_col)) {
-
-            tab <- cbind(rownames(res$estimate), res$estimate)
-            colnames(tab)[1] <- primary_id
-
+            if (!is.null(peptide_extractor)) {
+                tab <- cbind(rownames(res$estimate), s, res$estimate)
+                colnames(tab)[1] <- primary_id
+            }
+            else {
+                tab <- cbind(rownames(res$estimate), res$estimate)
+                colnames(tab)[1] <- primary_id
+            }
         } else {
-
             extra_annotation <- extract_annotation(rownames(res$estimate),
                                                    iq_dat$protein,
                                                    primary_id = primary_id,
                                                    annotation_columns = annotation_col)
 
-            tab <- cbind(rownames(res$estimate),
-                         extra_annotation[, annotation_col],
-                         res$estimate)
-            colnames(tab)[1:(length(annotation_col)+1)] <- c(primary_id, annotation_col)
+            if (!is.null(peptide_extractor)) {
+                tab <- cbind(rownames(res$estimate),
+                             extra_annotation[, annotation_col], s,
+                             res$estimate)
+                colnames(tab)[1:(length(annotation_col)+1)] <- c(primary_id, annotation_col)
+            }
+            else {
+                tab <- cbind(rownames(res$estimate),
+                             extra_annotation[, annotation_col],
+                             res$estimate)
+                colnames(tab)[1:(length(annotation_col)+1)] <- c(primary_id, annotation_col)
+            }
         }
 
         write.table(tab, output_filename, sep = "\t", row.names = FALSE, quote = FALSE)

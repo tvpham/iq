@@ -12,7 +12,8 @@ fast_preprocess(quant_table,
                 log2_intensity_cutoff = 0,
                 pdf_out = "qc-plots-fast.pdf",
                 pdf_width = 12,
-                pdf_height = 8)
+                pdf_height = 8,
+                show_boxplot = TRUE)
 }
 \arguments{
   \item{quant_table}{The \code{quant_table} component as returned by \code{fast_read}.
@@ -22,6 +23,7 @@ fast_preprocess(quant_table,
 \item{pdf_out}{A character string specifying the name of the PDF output. A \code{NULL} value will suppress the PDF output.}
 \item{pdf_width}{Width of the pdf output in inches.}
 \item{pdf_height}{Height of the pdf output in inches.}
+\item{show_boxplot}{A logical value. The default \code{TRUE} value is to create boxplots of fragment intensities for each sample.}
 }
 \value{
 A list is returned with the same components as input data in which low intensities are filtered out and median normalization is performed if requested.
