@@ -16,7 +16,7 @@ create_protein_table(protein_list, method = "maxLFQ", ...)
 }
 \value{
 A list of two components is returned
-\item{estimate}{A table of protein abundances for all samples.}
+\item{estimate}{A table of protein abundances for all samples in log2 space.}
 \item{annotation}{A vector of annotations, one for each protein.}
 }
 \examples{

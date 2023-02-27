@@ -11,7 +11,7 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 1.9.7
+Software version: 1.9.9
 
 #########################################################################
 */
@@ -571,7 +571,7 @@ void process(const vector<string> &argv,
         }
         Rprintf("\n");
     }
-    
+
     if (!filter_string_equal.empty()) {
         Rprintf("String equal filter(s):\n");
         for (auto str : filter_string_equal) {
@@ -592,7 +592,7 @@ void process(const vector<string> &argv,
             Rprintf("    %s < %f\n", str.first, str.second);
         }
     }
-    
+
     if (!filter_double_greater.empty()) {
         Rprintf("Double greater filter(s):\n");
         for (auto str : filter_double_greater) {
@@ -1060,18 +1060,20 @@ SEXP iq_filter(SEXP cmd) {
 
     const char *p = c;
 
-    while (*p == ' ') {
+    const char sep = 1;
+
+    while (*p == sep) {
         p++;
     }
 
     while (*p) {
         string s = "";
-        while (*p && *p != ' ') {
+        while (*p && *p != sep) {
             s = s + *p++;
         }
         argv.push_back(s);
 
-        while (*p == ' ') {
+        while (*p == sep) {
             p++;
         }
     }
@@ -1542,8 +1544,8 @@ SEXP iq_MaxLFQ(SEXP list) {
     ion_table::init(n_samples);  // QR for full matrix
 
     int nr = 0;
-    vector<int> map_back(n_proteins, -1);
-    for (int i = 0; i < n_proteins; i++) {
+    vector<int> map_back((*protein_index).size(), -1);
+    for (int i = 0; i < (*protein_index).size(); i++) {
         if (!(*protein_index)[i].empty()) {
             map_back[i] = nr;
             row_names[nr++] = i + 1;
@@ -1573,7 +1575,7 @@ SEXP iq_MaxLFQ(SEXP list) {
     #endif
 
     #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < n_proteins; i++) {
+    for (int i = 0; i < (*protein_index).size(); i++) {
         if (stop_sig) {
             continue;
         }
@@ -1615,17 +1617,17 @@ SEXP iq_MaxLFQ(SEXP list) {
             }
 
             if (component == -1) {
-                (*group_annotation)[i] = "NA";
+                (*group_annotation)[map_back[i]] = "NA";
             } else {
                 if (!single_compoment) {  // all NOT in the same component, otherwise the default empty string is good
                     for (int j = 0; j < n_samples; j++) {
                         if (j > 0) {
-                            (*group_annotation)[i].push_back(';');
+                            (*group_annotation)[map_back[i]].push_back(';');
                         }
                         if (isnan(w[j])) {
-                            (*group_annotation)[i].append("NA");
+                            (*group_annotation)[map_back[i]].append("NA");
                         } else {
-                            (*group_annotation)[i].append(to_string(gr[j] + 1));
+                            (*group_annotation)[map_back[i]].append(to_string(gr[j] + 1));
                         }
                     }
                 }
@@ -1648,9 +1650,9 @@ SEXP iq_MaxLFQ(SEXP list) {
 
         if (thread_id == 0) {
             if (i > thres_display) {
-                Rprintf("%d%%\n", i * 100 / n_proteins);
+                Rprintf("%d%%\n", i * 100 / (*protein_index).size());
                 R_FlushConsole();
-                thres_display = i + n_proteins / 20;
+                thres_display = i + (*protein_index).size() / 20;
             }
 
             if (tp_check()) {  // user interrupted ...

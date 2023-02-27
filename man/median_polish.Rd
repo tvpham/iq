@@ -14,7 +14,7 @@ median_polish(X)
 }
 \value{
 A list of two components is returned
-\item{estimate}{A vector with length equal to the number of columns of the input containing the protein abundances.}
+\item{estimate}{A vector with length equal to the number of columns of the input containing the protein abundances in log2 space.}
 \item{annotation}{Reserved, currently an empty string}
 }
 \references{

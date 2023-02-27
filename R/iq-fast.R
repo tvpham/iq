@@ -8,7 +8,7 @@
 #
 # Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, Bioinformatics 2020 Apr 15;36(8):2611-2613.
 #
-# Software version: 1.9.7
+# Software version: 1.9.9
 #
 #########################################################################
 
@@ -26,49 +26,51 @@ fast_read <- function(filename,
                       intensity_col_id = NULL,
                       na_string = "0") {
 
-    cmd <- paste0("--sample ", sample_id,
-                  " --primary ", primary_id,
-                  " --secondary ", paste(secondary_id, collapse = " "),
-                  " --quant ", intensity_col)
+    sep <- rawToChar(as.raw(1))
+
+    cmd <- paste("--sample", sample_id,
+                 "--primary", primary_id,
+                 "--secondary", paste(secondary_id, collapse = sep),
+                 "--quant", intensity_col, sep = sep)
 
     if (!is.null(annotation_col)) {
-        cmd <- paste0(cmd, " --annotation ", paste(annotation_col, collapse = " "))
+        cmd <- paste(cmd, "--annotation", paste(annotation_col, collapse = sep), sep = sep)
     }
 
     if (!is.null(filter_string_equal)) {
         for (f in names(filter_string_equal)) {
-            cmd <- paste0(cmd, " --filter-string-equal ", f, " ", filter_string_equal[f])
+            cmd <- paste(cmd, "--filter-string-equal", f, filter_string_equal[f], sep = sep)
         }
     }
 
     if (!is.null(filter_string_not_equal)) {
         for (f in names(filter_string_not_equal)) {
-            cmd <- paste0(cmd, " --filter-string-not-equal ", f, " ", filter_string_not_equal[f])
+            cmd <- paste(cmd, "--filter-string-not-equal", f, filter_string_not_equal[f], sep = sep)
         }
     }
 
     if (!is.null(filter_double_less)) {
         for (f in names(filter_double_less)) {
-            cmd <- paste0(cmd, " --filter-double-less ", f, " ", filter_double_less[f])
+            cmd <- paste(cmd, "--filter-double-less", f, filter_double_less[f], sep = sep)
         }
     }
 
     if (!is.null(filter_double_greater)) {
         for (f in names(filter_double_greater)) {
-            cmd <- paste0(cmd, " --filter-double-greater ", f, " ", filter_double_greater[f])
+            cmd <- paste(cmd, "--filter-double-greater", f, filter_double_greater[f], sep = sep)
         }
     }
 
     if (!is.null(intensity_col_sep)) {
-        cmd <- paste0(cmd, " --intensity_col_sep ", intensity_col_sep)
-        cmd <- paste0(cmd, " --na_string ", na_string)
+        cmd <- paste(cmd, "--intensity_col_sep", intensity_col_sep, sep = sep)
+        cmd <- paste(cmd, "--na_string", na_string, sep = sep)
     }
 
     if (!is.null(intensity_col_id)) {
-        cmd <- paste0(cmd, " --intensity_col_id ", intensity_col_id)
+        cmd <- paste(cmd, "--intensity_col_id", intensity_col_id, sep = sep)
     }
 
-    return(.Call("iq_filter", as.character(paste0(cmd, " ", filename))))
+    return(.Call("iq_filter", as.character(paste(cmd, filename, sep = sep))))
 }
 
 fast_MaxLFQ <- function(norm_data, row_names = NULL, col_names = NULL) {
