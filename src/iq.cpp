@@ -1545,7 +1545,7 @@ SEXP iq_MaxLFQ(SEXP list) {
 
     int nr = 0;
     vector<int> map_back((*protein_index).size(), -1);
-    for (int i = 0; i < (*protein_index).size(); i++) {
+    for (size_t i = 0; i < (*protein_index).size(); i++) {
         if (!(*protein_index)[i].empty()) {
             map_back[i] = nr;
             row_names[nr++] = i + 1;
@@ -1575,7 +1575,7 @@ SEXP iq_MaxLFQ(SEXP list) {
     #endif
 
     #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < (*protein_index).size(); i++) {
+    for (size_t i = 0; i < (*protein_index).size(); i++) {
         if (stop_sig) {
             continue;
         }
