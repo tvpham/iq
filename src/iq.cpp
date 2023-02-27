@@ -1552,7 +1552,7 @@ SEXP iq_MaxLFQ(SEXP list) {
         }
     }
 
-    int thres_display = 0;
+    size_t thres_display = 0;
 
     #ifdef _OPENMP
 
