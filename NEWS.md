@@ -1,3 +1,7 @@
+## Version 1.9.10
+
+- remove R_forceSymbols
+
 ## Version 1.9.9
 
 - improve C++ related codes: support spaces in column names, revise manuals, fix a bug when a protein is filtered out, remove C++11 requirement in Makevars
