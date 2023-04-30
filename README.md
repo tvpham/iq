@@ -27,6 +27,30 @@ See [a recent example](https://cran.r-project.org/web/packages/iq/vignettes/iq-f
 
 Or [an older vignette](https://cran.r-project.org/web/packages/iq/vignettes/iq.html) for processing output from Spectronaut, OpenSWATH and MaxQuant with some visualization.
 
+***One command to process a DIA-NN output***
+
+```
+process_long_format("report.tsv", 
+                    output_filename = "report-pg-global.tsv", 
+                    annotation_col = c("Protein.Names", "Genes"),
+                    filter_double_less = c("Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"))  
+```
+
+***One command to process a Spectronaut output***
+
+Use this export schema [iq.rs](https://github.com/tvpham/iq/releases/download/v1.1/iq.rs) to make a long report, for example "Spectronaut_Report.xls".
+```
+process_long_format("Spectronaut_Report.xls",
+                    output_filename = "iq-MaxLFQ.tsv", 
+                    sample_id  = "R.FileName",
+                    primary_id = "PG.ProteinGroups",
+                    secondary_id = c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType"),
+                    intensity_col = "F.PeakArea",
+                    annotation_col = c("PG.Genes", "PG.ProteinNames", "PG.FastaFiles"),
+                    filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
+                    filter_double_less = c("PG.Qvalue" = "0.01", "EG.Qvalue" = "0.01"),
+                    log2_intensity_cutoff = 0)
+```
 
 ### Examples
 
