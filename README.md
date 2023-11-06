@@ -36,6 +36,16 @@ process_long_format("report.tsv",
                     filter_double_less = c("Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"))  
 ```
 
+Use the paramter `peptide_extractor` if you want to get the number of peptides per protein.
+
+```
+process_long_format("report.tsv", 
+                    output_filename = "report-pg-global.tsv", 
+                    annotation_col = c("Protein.Names", "Genes"),
+                    filter_double_less = c("Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"),
+                    peptide_extractor = function(x) gsub("[0-9].*$", "", x))  
+```
+
 ***To process a Spectronaut output***
 
 Use this export schema [iq.rs](https://github.com/tvpham/iq/releases/download/v1.1/iq.rs) to make a long report, for example "Spectronaut_Report.xls".
