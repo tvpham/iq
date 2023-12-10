@@ -11,7 +11,7 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 1.9.10
+Software version: 1.9.11
 
 #########################################################################
 */
@@ -1038,15 +1038,15 @@ void process(const vector<string> &argv,
         }
 
         if (samples->size() >= print_threshold) {
-            Rprintf("%d samples read\n", samples->size());
+            Rprintf("%d samples read\n", (int)samples->size());
             print_threshold = samples->size() + 20;
         }
     }
-    Rprintf("\n# lines read (excluding headers)      = %d\n", line_no-1);
-    Rprintf("# quantitative values after filtering = %d\n\n", n_after_filtered);
+    Rprintf("\n# lines read (excluding headers)      = %d\n", (int)(line_no-1));
+    Rprintf("# quantitative values after filtering = %d\n\n", (int)n_after_filtered);
 
-    Rprintf("# samples  = %d\n", samples->size());
-    Rprintf("# proteins = %d\n", annotation->size());
+    Rprintf("# samples  = %d\n", (int)samples->size());
+    Rprintf("# proteins = %d\n", (int)annotation->size());
 
     cleanup();
 }
@@ -1510,7 +1510,7 @@ SEXP iq_MaxLFQ(SEXP list) {
     int* row_names = new int[n_proteins];
     int* col_names = new int[n_samples];
 
-    Rprintf("nrow = %d, # proteins = %d, # samples = %d\n", nrow, n_proteins, n_samples);
+    Rprintf("nrow = %d, # proteins = %d, # samples = %d\n", (int)nrow, (int)n_proteins, (int)n_samples);
 
     //auto protein_index = new vector< vector<int> >(n_proteins);
     auto protein_index = new vector<vector<int>>(*(std::max_element(proteins, proteins + nrow)));  // allowing for missing proteins
@@ -1650,7 +1650,7 @@ SEXP iq_MaxLFQ(SEXP list) {
 
         if (thread_id == 0) {
             if (i > thres_display) {
-                Rprintf("%d%%\n", i * 100 / (*protein_index).size());
+                Rprintf("%d%%\n", (int)(i * 100 / (*protein_index).size()));
                 R_FlushConsole();
                 thres_display = i + (*protein_index).size() / 20;
             }

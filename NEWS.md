@@ -1,3 +1,7 @@
+## Version 1.9.12
+
+- fix some C++ warnings size_t to int
+
 ## Version 1.9.10
 
 - remove R_forceSymbols
