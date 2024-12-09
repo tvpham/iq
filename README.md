@@ -44,8 +44,11 @@ process_long_format(arrow::read_parquet("report.parquet"),
                     intensity_col_sep = NULL,
                     annotation_col = c("Protein.Ids","Protein.Names", "Genes"),
                     filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
+```
 
-# Without MBR
+For DIA-NN search without MBR
+
+```
 process_long_format(arrow::read_parquet("report.parquet"), 
                     output_filename = "report-protein-group.txt", 
                     sample_id = "Run",
