@@ -24,7 +24,8 @@ preprocess <- function(quant_table,
                        pdf_height = 8,
                        intensity_col_sep = NULL,
                        intensity_col_id = NULL,
-                       na_string = "0") {
+                       na_string = "0",
+                       show_boxplot = TRUE) {
 
     if (!is.null(pdf_out)) {
         pdf(pdf_out, pdf_width, pdf_height)
@@ -106,7 +107,7 @@ preprocess <- function(quant_table,
         d <- d[d$quant > log2_intensity_cutoff,]
     }
 
-    if (!is.null(pdf_out)) {
+    if (!is.null(pdf_out) && show_boxplot) {
         dl <- list()
     }
 
@@ -116,12 +117,12 @@ preprocess <- function(quant_table,
         v <- d$quant[d$sample_list == samples[i]]
         m[i] <- median(v, na.rm = TRUE)
 
-        if (!is.null(pdf_out)) {
+        if (!is.null(pdf_out) && show_boxplot) {
             dl[i] <- list(v)
         }
     }
 
-    if (!is.null(pdf_out)) {
+    if (!is.null(pdf_out) && show_boxplot) {
         message("Barplotting raw data ...\n")
 
         boxplot(dl,
@@ -147,7 +148,7 @@ preprocess <- function(quant_table,
             d$quant[idx] <- d$quant[idx] + f[i]
         }
 
-        if (!is.null(pdf_out)) {
+        if (!is.null(pdf_out) && show_boxplot) {
             message("Barplotting after normalization ...\n")
 
             dl <- list()
@@ -200,13 +201,12 @@ create_protein_list <- function(preprocessed_data) {
 
     message("# proteins = ", length(proteins), ", # samples = ", length(samples))
 
-    thres_display <- length(proteins) / 20
+    n_display <- length(proteins) %/% 20
 
     for (i in 1:length(proteins)) {
 
-        if (i > thres_display) {
+        if (n_display > 0 && i %% n_display == 0) {
             message(format(i * 100 / length(proteins), digits = 2), "%")
-            thres_display <- i + length(proteins) / 20
         }
 
         tmp <- preprocessed_data[preprocessed_data$protein_list == proteins[i],]
@@ -430,13 +430,12 @@ create_protein_table <- function(protein_list, method = "maxLFQ", ...) {
 
     annotation <- rep(NA, length(protein_list))
 
-    thres_display <- nrow(tab) / 20
+    n_display <- nrow(tab) %/% 20
 
     for (i in 1:nrow(tab)) {
 
-        if (i > thres_display) {
+        if (n_display > 0 && i %% n_display == 0) {
             message(format(i * 100 / nrow(tab), digits = 2), "%")
-            thres_display <- i + nrow(tab) / 20
         }
 
         if (method == "maxLFQ") {
@@ -560,14 +559,13 @@ process_wide_format <- function(input_filename,
         }
         rownames(res$estimate) <- unique_values
 
-        thres_display <- length(unique_values)/20
+        n_display <- length(unique_values) %/% 20
 
         message("Processing...")
         for (r in 1:length(unique_values)) {
 
-            if (r > thres_display) {
+            if (n_display > 0 && r %% n_display == 0) {
                 message(format(r * 100/length(unique_values), digits = 2), "%")
-                thres_display <- r + length(unique_values)/20
             }
 
             a <- d[d[, id_column] == unique_values[r], quant_columns]

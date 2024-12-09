@@ -223,7 +223,7 @@ fast_preprocess <- function(quant_table,
     return(d)
 }
 
-process_long_format <- function(input_filename,
+process_long_format <- function(input_data,
                                 output_filename,
                                 sample_id = "File.Name",
                                 primary_id = "Protein.Group",
@@ -254,7 +254,126 @@ process_long_format <- function(input_filename,
         stop("Unknown normalization method.")
     }
 
-    iq_dat <- fast_read(input_filename,
+
+    if (is.data.frame(input_data)) {
+
+        required_columns <- c(sample_id, primary_id, secondary_id, intensity_col, annotation_col,
+                              names(filter_string_equal),
+                              names(filter_string_not_equal),
+                              names(filter_double_less),
+                              names(filter_double_greater))
+
+        index <- match(required_columns, names(input_data))
+        # check for NA values
+        if (any(is.na(index))) {
+            stop(paste0("The input data frame has no column: ", required_columns[which(is.na(index))[1]]))
+        }
+
+        d <- input_data
+
+        if (!is.null(filter_string_equal)) {
+            cmd <- paste0("d <- d[",
+                          paste0("d$", names(filter_string_equal), " == ", '"', filter_string_equal, '"', collapse = " & "), ",]")
+            eval(parse(text = cmd))
+        }
+
+        if (!is.null(filter_string_not_equal)) {
+            cmd <- paste0("d <- d[",
+                          paste0("d$", names(filter_string_not_equal), " != ", '"', filter_string_not_equal, '"', collapse = " & "), ",]")
+            eval(parse(text = cmd))
+        }
+
+        if (!is.null(filter_double_less)) {
+            cmd <- paste0("d <- d[",
+                          paste0("d$", names(filter_double_less), " <= ", filter_double_less, collapse = " & "), ",]")
+            eval(parse(text = cmd))
+        }
+
+        if (!is.null(filter_double_greater)) {
+            cmd <- paste0("d <- d[",
+                          paste0("d$", names(filter_double_greater), " >= ", filter_double_greater, collapse = " & "), ",]")
+            eval(parse(text = cmd))
+        }
+
+        norm_data <- preprocess(d,
+                                primary_id = primary_id,
+                                sample_id  = sample_id,
+                                secondary_id = secondary_id,
+                                intensity_col = intensity_col,
+                                intensity_col_sep = NULL,
+                                intensity_col_id = NULL,
+                                median_normalization = median_normalization,
+                                log2_intensity_cutoff = log2_intensity_cutoff,
+                                pdf_out = pdf_out,
+                                pdf_width = pdf_width,
+                                pdf_height = pdf_height,
+                                na_string = na_string,
+                                show_boxplot = show_boxplot)
+
+        res <- fast_MaxLFQ(norm_data)
+
+        if (!is.null(peptide_extractor)) {
+            message("Calculating fragment statistics... ")
+            s <- matrix(0, nrow = nrow(res$estimate), ncol = 2)
+            colnames(s) <- c("n_fragments", "n_peptides")
+
+            n_display <- nrow(s) %/% 20
+
+            for (i in 1:nrow(s)) {
+
+                if (n_display > 0 && i %% n_display == 0) {
+                    message(format(i * 100 / nrow(s), digits = 2), "%")
+                }
+
+                #ind <- unique(iq_dat$quant_table$id[iq_dat$quant_table$protein_list == i])
+                frags <- unique(norm_data$id[norm_data$protein_list == rownames(res$estimate)[i]])
+                s[i, 1] <- length(frags)
+                frags <- unique(peptide_extractor(frags))
+                s[i, 2] <- length(frags)
+            }
+            message("Completed. ")
+        }
+
+        message("Writing to: ", output_filename)
+
+        if (is.null(annotation_col)) {
+            if (!is.null(peptide_extractor)) {
+                tab <- cbind(rownames(res$estimate), s, res$estimate)
+                colnames(tab)[1] <- primary_id
+            }
+            else {
+                tab <- cbind(rownames(res$estimate), res$estimate)
+                colnames(tab)[1] <- primary_id
+            }
+        } else {
+            extra_annotation <- extract_annotation(rownames(res$estimate),
+                                                   d,
+                                                   primary_id = primary_id,
+                                                   annotation_columns = annotation_col)
+
+            if (!is.null(peptide_extractor)) {
+                tab <- cbind(rownames(res$estimate),
+                             extra_annotation[, annotation_col], s,
+                             res$estimate)
+                colnames(tab)[1:(length(annotation_col)+1)] <- c(primary_id, annotation_col)
+            }
+            else {
+                tab <- cbind(rownames(res$estimate),
+                             extra_annotation[, annotation_col],
+                             res$estimate)
+                colnames(tab)[1:(length(annotation_col)+1)] <- c(primary_id, annotation_col)
+            }
+        }
+
+        write.table(tab, output_filename, sep = "\t", row.names = FALSE, quote = FALSE)
+
+
+        return(invisible(NULL))
+
+    }
+
+
+    iq_dat <- fast_read(input_data,
                         primary_id = primary_id,
                         sample_id  = sample_id,
                         secondary_id = secondary_id,
@@ -285,13 +404,12 @@ process_long_format <- function(input_filename,
             s <- matrix(0, nrow = nrow(iq_dat$protein), ncol = 2)
             colnames(s) <- c("n_fragments", "n_peptides")
 
-            thres_display <- nrow(s) / 20
+            n_display <- nrow(s) %/% 20
 
             for (i in 1:nrow(s)) {
 
-                if (i > thres_display) {
+                if (n_display > 0 && i %% n_display == 0) {
                     message(format(i * 100 / nrow(s), digits = 2), "%")
-                    thres_display <- i + nrow(s) / 20
                 }
 
                 ind <- unique(iq_dat$quant_table$id[iq_dat$quant_table$protein_list == i])

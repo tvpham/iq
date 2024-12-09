@@ -7,7 +7,7 @@ Long format to a wide format table using the MaxLFQ algorithm
 A convenient function combining multiple steps to process a long format table using the MaxLFQ algorithm.
 }
 \usage{
-process_long_format(input_filename,
+process_long_format(input_data,
                     output_filename,
                     sample_id = "File.Name",
                     primary_id = "Protein.Group",
@@ -30,7 +30,7 @@ process_long_format(input_filename,
                     peptide_extractor = NULL)
 }
 \arguments{
-  \item{input_filename}{See \code{filename} in \code{\link{fast_read}}.}
+  \item{input_data}{A data frame or a filename. See \code{filename} in \code{\link{fast_read}}.}
   \item{output_filename}{Output filename.}
   \item{sample_id}{See \code{sample_id} in \code{\link{fast_read}}.}
   \item{primary_id}{See \code{primary_id} in \code{\link{fast_read}}.}
@@ -53,7 +53,10 @@ process_long_format(input_filename,
   \item{peptide_extractor}{A function to parse peptides.}
 }
 \value{
-After processing with \code{\link{fast_read}}, \code{\link{fast_preprocess}}, and \code{\link{fast_MaxLFQ}}, the result table is written to \code{output_filename}. The quantification values are in log2 space. A \code{NULL} value is returned. If \code{peptide_extractor} is not \code{NULL}, fragment statistics for each protein will be calculated based on the result of the extractor function. Counting the number of peptides contributing to a protein is possible using an appropriate extractor function. An example value for \code{peptide_extractor} is \code{function(x) gsub("[0-9].*$", "", x)}, which removes the charge state and fragment descriptors in an ion descriptor to obtain unique peptide sequences. One can examine the \code{ion} component returned by the \code{\link{fast_read}} function to derive a regular expression to be used in the \code{gsub} function above.
+Either an input data frame is processed with \code{\link{fast_MaxLFQ}} or an input file is processed with \code{\link{fast_read}}, \code{\link{fast_preprocess}}, and \code{\link{fast_MaxLFQ}}.
+Subsequently, the result is written to \code{output_filename}. The quantification values are in log2 space.
+A \code{NULL} value is returned. If \code{peptide_extractor} is not \code{NULL}, fragment statistics
+for each protein will be calculated based on the result of the extractor function. Counting the number of peptides contributing to a protein is possible using an appropriate extractor function. An example value for \code{peptide_extractor} is \code{function(x) gsub("[0-9].*$", "", x)}, which removes the charge state and fragment descriptors in an ion descriptor to obtain unique peptide sequences. One can examine the \code{ion} component returned by the \code{\link{fast_read}} function to derive a regular expression to be used in the \code{gsub} function above.
 }
 \references{
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein

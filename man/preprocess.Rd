@@ -19,7 +19,8 @@ preprocess(quant_table,
            pdf_height = 8,
            intensity_col_sep = NULL,
            intensity_col_id = NULL,
-           na_string = "0")
+           na_string = "0",
+           show_boxplot = TRUE)
 }
 \arguments{
   \item{quant_table}{
@@ -37,6 +38,7 @@ A long-format table with a primary column of protein identification, secondary c
 \item{intensity_col_sep}{A separator character when entries in the intensity column contain multiple values.}
 \item{intensity_col_id}{The column for identities of multiple quantitative values.}
 \item{na_string}{The value considered as NA.}
+\item{show_boxplot}{A logical value. The default \code{TRUE} value is to create boxplots of fragment intensities for each sample.}
 }
 \details{
 When entries in the intensity column contain multiple values, this function will replicate entries in other column and the \code{secondary_id} will be appended with corresponding entries in \code{intensity_col_id} when it is provided. Otherwise, integer values 1, 2, 3, etc... will be used.

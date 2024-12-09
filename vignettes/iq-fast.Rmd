@@ -1,7 +1,7 @@
 ---
 title: "Fast MaxLFQ"
 author: "Thang V Pham"
-date: "`r Sys.Date()`" 
+date: "2024-12-03" 
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Fast MaxLFQ}
@@ -11,17 +11,9 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
-```
 
-```{r eval=TRUE, include=FALSE, echo=FALSE}
-require("knitr")
-local_file_exist <- file.exists("DIA-report-long-format.txt")
-```
+
+
 
 We have implemented a highly optimized version of the **iq** pipeline (Pham et al., Bioinformatics 2020). To run the following examples, download [DIA-report-long-format.zip](https://github.com/tvpham/iq/releases/download/v1.1/DIA-report-long-format.zip) and unzip the file to a local working directory.
 
@@ -32,7 +24,8 @@ The unzipped file `DIA-report-long-format.txt` is a tab-deliminated text file ex
 
 First, we apply the standard pipeline implemented in pure R. Read and filter the data
 
-```{r, eval = local_file_exist, include = TRUE}
+
+``` r
 library("iq") # if not already installed, run install.packages("iq") 
 
 raw <- read.delim("DIA-Report-long-format.txt")
@@ -46,7 +39,8 @@ raw <- raw[selected,]
 
 Normalize the data, create a protein list, and perform the MaxLFQ algorithm
 
-```{r eval = local_file_exist, echo=TRUE, message = TRUE, include = TRUE}
+
+``` r
 sample_id  <- "R.FileName" 
 
 secondary_id <- c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType")
@@ -54,15 +48,64 @@ secondary_id <- c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F
 norm_data <- iq::preprocess(raw, 
                             sample_id  = sample_id, 
                             secondary_id = secondary_id)
+#> Concatenating secondary ids...
+#> Removing low intensities...
+#> Barplotting raw data ...
+#> Median normalization ...
+#> Barplotting after normalization ...
 
 protein_list <- iq::create_protein_list(norm_data)
+#> # proteins = 3554, # samples = 24
+#> 5%
+#> 10%
+#> 15%
+#> 20%
+#> 25%
+#> 30%
+#> 35%
+#> 40%
+#> 45%
+#> 50%
+#> 55%
+#> 60%
+#> 65%
+#> 70%
+#> 75%
+#> 80%
+#> 85%
+#> 90%
+#> 95%
+#> 100%
+#> Completed.
 
 result <- iq::create_protein_table(protein_list)
+#> 5%
+#> 10%
+#> 15%
+#> 20%
+#> 25%
+#> 30%
+#> 35%
+#> 40%
+#> 45%
+#> 50%
+#> 55%
+#> 60%
+#> 65%
+#> 70%
+#> 75%
+#> 80%
+#> 85%
+#> 90%
+#> 95%
+#> 100%
+#> Completed.
 ```
 
 Extract annotation columns and write the result to an output file
 
-```{r eval = local_file_exist}
+
+``` r
 annotation_columns <- c("PG.Genes", "PG.ProteinNames")
 
 extra_names <- iq::extract_annotation(rownames(result$estimate), 
@@ -82,46 +125,139 @@ The resulting file `iq-MaxLFQ.txt` is the protein level quantification report in
 
 The function `iq::fast_MaxLFQ` implemented in C++ combines the functionalities of `iq::create_protein_list` and `iq::create_protein_table`.
 
-```{r eval = local_file_exist}
+
+``` r
 #--------------------- Replacing ---------------------
 # protein_list <- iq::create_protein_list(norm_data) #
 # result <- iq::create_protein_table(protein_list)   #
 #-----------------------------------------------------
 
 result_faster <- iq::fast_MaxLFQ(norm_data)
-
+#> nrow = 3369557, # proteins = 3554, # samples = 24
+#> Using 35 threads...
+#> 0%
+#> 6%
+#> 13%
+#> 18%
+#> 24%
+#> 29%
+#> 36%
+#> 42%
+#> 47%
+#> 52%
+#> 57%
+#> 64%
+#> 70%
+#> 77%
+#> 82%
+#> 87%
+#> 92%
+#> 98%
+#> Completed.
 ```
 
 The results of the R implementation `result` and C++ implementation `result_faster` should be equal up to the floating-point precision of the underlying numerical libraries.
 
-```{r eval = local_file_exist}
+
+``` r
 cat("Max difference =", max(abs(result_faster$estimate - result$estimate), na.rm = TRUE), "\n")
+#> Max difference = 1.332268e-13
 
 cat("Identical NAs =", identical(is.na(result_faster$estimate), is.na(result$estimate)), "\n")
+#> Identical NAs = TRUE
 
 cat("Equal annotation =", identical(result_faster$annotation, result$annotation), "\n")
+#> Equal annotation = TRUE
 ```
 
 ### Benchmarking execution time
 
 We can check the improvement in execution time. The following result is obtained on a computer with 12 CPU cores.
 
-```{r eval=local_file_exist}
+
+``` r
 system.time({
     protein_list <- iq::create_protein_list(norm_data)
     result <- iq::create_protein_table(protein_list)
 })
+#> # proteins = 3554, # samples = 24
+#> 5%
+#> 10%
+#> 15%
+#> 20%
+#> 25%
+#> 30%
+#> 35%
+#> 40%
+#> 45%
+#> 50%
+#> 55%
+#> 60%
+#> 65%
+#> 70%
+#> 75%
+#> 80%
+#> 85%
+#> 90%
+#> 95%
+#> 100%
+#> Completed.
+#> 5%
+#> 10%
+#> 15%
+#> 20%
+#> 25%
+#> 30%
+#> 35%
+#> 40%
+#> 45%
+#> 50%
+#> 55%
+#> 60%
+#> 65%
+#> 70%
+#> 75%
+#> 80%
+#> 85%
+#> 90%
+#> 95%
+#> 100%
+#> Completed.
+#>    user  system elapsed 
+#>  395.82    9.00  404.87
 
 system.time({
     result_faster <- iq::fast_MaxLFQ(norm_data)
 })
+#> nrow = 3369557, # proteins = 3554, # samples = 24
+#> Using 35 threads...
+#> 0%
+#> 7%
+#> 15%
+#> 24%
+#> 30%
+#> 36%
+#> 42%
+#> 47%
+#> 54%
+#> 59%
+#> 65%
+#> 72%
+#> 77%
+#> 83%
+#> 90%
+#> 96%
+#> Completed.
+#>    user  system elapsed 
+#>    7.75    0.04    3.55
 ```
 
 ## An efficient data structure and data loading
 
 We have implemented a fast data loading algorithm and an efficient data structure. The memory usage is highly optimized to enable the processing of very large datasets.
 
-```{r eval=local_file_exist}
+
+``` r
 sample_id  <- "R.FileName" 
 
 secondary_id <- c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType")
@@ -133,27 +269,82 @@ iq_dat <- iq::fast_read("DIA-report-long-format.txt",
                         secondary_id = secondary_id,
                         filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
                         annotation_col = annotation_columns)
+#> 
+#> Command: --sample R.FileName --primary PG.ProteinGroups --secondary EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType --quant F.PeakArea --annotation PG.Genes PG.ProteinNames --filter-string-equal F.ExcludedFromQuantification False --filter-double-less PG.Qvalue 0.01 --filter-double-less EG.Qvalue 0.01 DIA-report-long-format.txt 
+#> 
+#> Sample column:
+#>     R.FileName
+#> Protein column:
+#>     PG.ProteinGroups
+#> Ion column(s):
+#>     EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType
+#> Quant column:
+#>     F.PeakArea
+#> Annotation column(s):
+#>     PG.Genes PG.ProteinNames
+#> String equal filter(s):
+#>     F.ExcludedFromQuantification == False
+#> Double less filter(s):
+#>     PG.Qvalue < 0.010000
+#>     EG.Qvalue < 0.010000
+#> 
+#> Using 4 threads ...
+#> 20 samples read
+#> 
+#> # lines read (excluding headers)      = 5547331
+#> # quantitative values after filtering = 3390569
+#> 
+#> # samples  = 24
+#> # proteins = 3554
 
 iq_norm_data <- iq::fast_preprocess(iq_dat$quant_table)
+#> Removing low intensities...
+#> Barplotting raw data ...
+#> Median normalization ...
+#> Barplotting after normalization ...
 
 result_fastest <- iq::fast_MaxLFQ(iq_norm_data, 
                                   row_names = iq_dat$protein[, 1], 
                                   col_names = iq_dat$sample)
+#> nrow = 3369557, # proteins = 3554, # samples = 24
+#> Using 35 threads...
+#> 0%
+#> 5%
+#> 11%
+#> 16%
+#> 22%
+#> 27%
+#> 33%
+#> 40%
+#> 46%
+#> 53%
+#> 58%
+#> 63%
+#> 69%
+#> 87%
+#> 93%
+#> 99%
+#> Completed.
 ```
 
 The result of the optimized pipeline `result_fastest` should be the same as that of the standard pipeline `result`.
 
-```{r eval = local_file_exist}
+
+``` r
 cat("Max difference =", max(abs(result_fastest$estimate - result$estimate), na.rm = TRUE), "\n")
+#> Max difference = 1.136868e-13
 
 cat("Identical NAs =", identical(is.na(result_fastest$estimate), is.na(result$estimate)), "\n")
+#> Identical NAs = TRUE
 
 cat("Equal annotation =", identical(result_fastest$annotation, result$annotation), "\n")
+#> Equal annotation = TRUE
 ```
 
 The annotation columns are stored in the `protein` component of the input data structure `iq_dat`. We can extract the annotation columns and write the result to an output text file.
 
-```{r eval = local_file_exist}
+
+``` r
 iq_extra_names <- iq::extract_annotation(rownames(result_fastest$estimate), 
                                          iq_dat$protein, 
                                          annotation_columns = annotation_columns)
@@ -167,7 +358,8 @@ write.table(cbind(Protein = rownames(result_fastest$estimate),
 
 ### Benchmarking execution time
 
-```{r eval = local_file_exist}
+
+``` r
 sample_id  <- "R.FileName" 
 
 secondary_id <- c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType")
@@ -197,6 +389,56 @@ system.time({
     result <- iq::create_protein_table(protein_list)
     
 })
+#> Concatenating secondary ids...
+#> Removing low intensities...
+#> Barplotting raw data ...
+#> Median normalization ...
+#> Barplotting after normalization ...
+#> # proteins = 3554, # samples = 24
+#> 5%
+#> 10%
+#> 15%
+#> 20%
+#> 25%
+#> 30%
+#> 35%
+#> 40%
+#> 45%
+#> 50%
+#> 55%
+#> 60%
+#> 65%
+#> 70%
+#> 75%
+#> 80%
+#> 85%
+#> 90%
+#> 95%
+#> 100%
+#> Completed.
+#> 5%
+#> 10%
+#> 15%
+#> 20%
+#> 25%
+#> 30%
+#> 35%
+#> 40%
+#> 45%
+#> 50%
+#> 55%
+#> 60%
+#> 65%
+#> 70%
+#> 75%
+#> 80%
+#> 85%
+#> 90%
+#> 95%
+#> 100%
+#> Completed.
+#>    user  system elapsed 
+#>  569.83   14.78  584.75
 
 system.time({
     iq_dat <- iq::fast_read("DIA-report-long-format.txt",
@@ -211,6 +453,60 @@ system.time({
                                       row_names = iq_dat$protein[, 1], 
                                       col_names = iq_dat$sample)
 })
+#> 
+#> Command: --sample R.FileName --primary PG.ProteinGroups --secondary EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType --quant F.PeakArea --annotation PG.Genes PG.ProteinNames --filter-string-equal F.ExcludedFromQuantification False --filter-double-less PG.Qvalue 0.01 --filter-double-less EG.Qvalue 0.01 DIA-report-long-format.txt 
+#> 
+#> Sample column:
+#>     R.FileName
+#> Protein column:
+#>     PG.ProteinGroups
+#> Ion column(s):
+#>     EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType
+#> Quant column:
+#>     F.PeakArea
+#> Annotation column(s):
+#>     PG.Genes PG.ProteinNames
+#> String equal filter(s):
+#>     F.ExcludedFromQuantification == False
+#> Double less filter(s):
+#>     PG.Qvalue < 0.010000
+#>     EG.Qvalue < 0.010000
+#> 
+#> Using 4 threads ...
+#> 20 samples read
+#> 
+#> # lines read (excluding headers)      = 5547331
+#> # quantitative values after filtering = 3390569
+#> 
+#> # samples  = 24
+#> # proteins = 3554
+#> Removing low intensities...
+#> Barplotting raw data ...
+#> Median normalization ...
+#> Barplotting after normalization ...
+#> nrow = 3369557, # proteins = 3554, # samples = 24
+#> Using 35 threads...
+#> 0%
+#> 5%
+#> 13%
+#> 18%
+#> 24%
+#> 29%
+#> 34%
+#> 40%
+#> 45%
+#> 50%
+#> 55%
+#> 61%
+#> 68%
+#> 75%
+#> 80%
+#> 86%
+#> 92%
+#> 98%
+#> Completed.
+#>    user  system elapsed 
+#>   27.54    1.56   12.34
 ```
 
 

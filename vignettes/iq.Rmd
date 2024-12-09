@@ -1,7 +1,7 @@
 ---
 title: "Relative protein quantification for DIA-MS-based proteomics"
 author: "Thang V Pham"
-date: "`r Sys.Date()`" 
+date: "2024-12-04" 
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics}
@@ -9,34 +9,27 @@ vignette: >
   %VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
-```
 
-```{r setup, include=FALSE, echo=FALSE}
-require("knitr")
-local_file_exist <- file.exists("Bruderer15-DIA-longformat-compact.txt.gz")
-```
+
+
 
 ## Introduction
 
-The **iq** package, short for ion-based protein quantification, implements the MaxLFQ maximal peptide ratio
-extraction algorithm for data-independent acquisition (DIA) mass spectrometry (MS) based proteomics data. The algorithm was originally designed for data
+The **iq** package, short for ion-based protein quantification, implements the MaxLFQ algorithm for data-independent acquisition (DIA) mass spectrometry (MS) based proteomics data. The algorithm was originally designed for data
 dependent acquisition (DDA) data (Cox et al., MCP 2014).
 The package also offers options for other quantitation methods including topN (using N most intense fragment ions), MeanInt (using all fragment ions), and median polish (Tukey, 1977). Finally, output from a MaxQuant experiment for DDA data can also be quantified using **iq**.
 
 
 To install **iq** from CRAN (this needs to be done once)
 
-```{r, eval=FALSE}
+
+``` r
 install.packages("iq")
 ```
 
 and the package can be loaded for usage in the usual manner
-```{r, eval=TRUE, include = TRUE}
+
+``` r
 library("iq")
 ```
 
@@ -56,7 +49,8 @@ The result of the MaxQuant (version 1.6.4.0) DDA search is used as a spectral li
 
 First we perform preprocessing to filter out ion fragments not used for quantification and to keep only relevant columns to keep the file size small. Note that the following code section cannot be executed here because the starting input file _Bruderer15-DIA-longformat.txt_ is not available. To process your own data, replace _Bruderer15-DIA-longformat.txt_ by the name of the Spectronaut export.
 
-```{r, eval=FALSE, include = TRUE}
+
+``` r
 raw <- read.delim("Bruderer15-DIA-longformat.txt")
 
 selected <- raw$F.ExcludedFromQuantification == "False" & 
@@ -71,19 +65,22 @@ write.table(raw, "Bruderer15-DIA-longformat-compact.txt", sep = "\t", row.names 
 ```
 
 Note that if the quantification filtering option is selected when exporting the report from Spectronaut, the software already filters out entries with high protein q-values and peptide q-values. We can check that by
-```{r, eval=FALSE, include = TRUE}
+
+``` r
 all(raw$PG.Qvalue <= 0.01)
 all(raw$EG.Qvalue <= 0.01)
 ```
 
 We write the content of `raw` to a text file and gzip it to keep the file size manageable. In the following, we will continue with the compressed file  _Bruderer15-DIA-longformat-compact.txt.gz_. Note that the user does not need to write the data to disk and read it back like in this example when processing their own data.
 
-```{r, eval=local_file_exist, include=TRUE}
+
+``` r
 raw <- read.delim(gzfile("Bruderer15-DIA-longformat-compact.txt.gz"))
 ```
 
 The MaxLFQ quantification is performed in three steps
-```{r eval=local_file_exist, echo=TRUE, message = FALSE, include=TRUE}
+
+``` r
 norm_data <- iq::preprocess(raw)
 protein_list <- iq::create_protein_list(norm_data)
 result <- iq::create_protein_table(protein_list)
@@ -92,10 +89,13 @@ result <- iq::create_protein_table(protein_list)
 The first step `iq::preprocess` prepares a long-format input including removing low-intensity ions and performing median normalization.
 To select a threshold for removing low-intensity ions, plot a histogram of the data as follows
 
-```{r, eval=local_file_exist, include=TRUE, fig.width=6.5, fig.height=4.5}
+
+``` r
 hist(log2(raw[, "F.PeakArea"]), 100, main = "Histogram of log2 intensities", 
      col = "steelblue", border = "steelblue", freq = FALSE)
 ```
+
+<img src="iq1-1.png" width="95%" style="display: block; margin: auto;" />
 
 Here the default threshold value of zero for `log2_intensity_cutoff` is appropriate as it removes the strange distribution of low-intensity data points on the left of the figure.
 
@@ -107,7 +107,8 @@ The last statement `iq::create_protein_table` quantifies the protein list one by
 
 The following statement produces a quantified protein table in a tab-separated text file _output-maxLFQ.txt_ containing the protein identifiers in the first column, the quantified proteins, and the annotation text in the last column. This file can be opened by a spreadsheet application such as Excel.
 
-```{r, eval = FALSE, include=TRUE}
+
+``` r
 write.table(cbind(Protein = rownames(result$estimate),
                   result$estimate, 
                   annotation = result$annotation),
@@ -119,13 +120,17 @@ write.table(cbind(Protein = rownames(result$estimate),
 
 The function _iq::plot\_protein()_ plots the underlying data for individual proteins. By default, the names of fragment ions are displayed on the right panel, which can be disabled by setting parameter _split_ to NULL. 
 
-```{r, eval=local_file_exist, include=TRUE, fig.width=6.5, fig.height=4.5}
+
+``` r
 iq::plot_protein(protein_list$P00366, main = "Protein P00366", split = NULL)  
 ```
 
+<img src="iq2-1.png" width="95%" style="display: block; margin: auto;" />
+
 By attaching the result of the quantitation algorithm to the data table, we can demonstrate both protein quantitative values and the underlying data. Here we set the colors of fragment ions to gray.
 
-```{r, eval=local_file_exist, include=TRUE, fig.width=6.5, fig.height=4.5}
+
+``` r
 iq::plot_protein(rbind(protein_list$P00366, 
                        MaxLFQ = iq::maxLFQ(protein_list$P00366)$estimate), 
                  main = "MaxLFQ quantification of P00366", 
@@ -133,15 +138,21 @@ iq::plot_protein(rbind(protein_list$P00366,
                  split = NULL)  
 ```
 
+<img src="iq3-1.png" width="95%" style="display: block; margin: auto;" />
+
 The names of constituent ions are displayed on the right when `split` is not `NULL`. We can pass additional graphical parameters to fine-tune the plot. For example, in the following we make the font size smaller by setting `cex` to 0.4 due to the restricted plotting space.
 
-```{r, eval=local_file_exist, include=TRUE, fig.width=6.5, fig.height=4.5}
+
+``` r
 iq::plot_protein(protein_list$P00366, main = "Protein P00366", cex = 0.4)  
 ```
 
+<img src="iq4-1.png" width="95%" style="display: block; margin: auto;" />
+
 We can also use the protein plotting function to display different quantitative methods for evaluation. For example, here we show the quantitative values of a spike-in protein using MaxFLQ and the spike-in ground truth values (rescaled so that the means of the two are the same).
 
-```{r, eval=local_file_exist, include=TRUE, fig.width=6.5, fig.height=4.5}
+
+``` r
 MaxLFQ_estimate <- iq::maxLFQ(protein_list$P12799)$estimate
 
 ground_truth <-  log2(rep(c(200, 125.99, 79.37, 50, 4, 2.52, 1.59, 1), each = 3))
@@ -151,15 +162,19 @@ iq::plot_protein(rbind(MaxLFQ = MaxLFQ_estimate,
                        Groundtruth = ground_truth), 
                  main = "P12799 - MaxLFQ versus groundtruth",  
                  split = 0.75, 
+                 cex = 0.9,
                  col = c("green", "gold"))  
 ```
+
+<img src="iq5-1.png" width="95%" style="display: block; margin: auto;" />
 
 
 ### Extracting additional protein annotation
 
 The input data might contain extra annotations for the proteins. We provide a convenient function to extract additional annotation. The following script produces the same quantitative values as before, but with additional columns for gene names and protein names.
 
-```{r, eval=FALSE, include = TRUE}
+
+``` r
 extra_names <- iq::extract_annotation(rownames(result$estimate), 
                                       raw, 
                                       annotation_columns = c("PG.Genes", "PG.ProteinNames"))
@@ -177,7 +192,8 @@ write.table(cbind(Protein = rownames(result$estimate),
 We download OpenSWATH data from the publication of Schubert et al. (Cell Host & Microbe 2015). The data is in a long format with fragment ions and their corresponding intensities are concatenated in two entries for each peptide. We separate these entries into an extended long format. Again, we will only keep relevant columns and compress the result. Thus, the user can skip this code section and continue to the next section using the data available in the project GitHub release.
 
 
-```{r, eval=FALSE, include = TRUE}
+
+``` r
 tab <- read.delim("./Mtb_feature_alignment_requant_filtered_max10_fixed_noUPS.tsv", 
                   stringsAsFactors = FALSE)
 
@@ -213,28 +229,41 @@ write.table(tab_small, "Schubert15-OpenSWATH.txt", sep = "\t", row.names = FALSE
 
 First we load the compressed data prepared by the previous step
 
-```{r, eval=local_file_exist, include=TRUE}
+
+``` r
 tab_small <- read.delim(gzfile("Schubert15-OpenSWATH.txt.gz"))
 ```
 
 and check the head of the data file
 
-```{r, eval=local_file_exist, include=TRUE}
+
+``` r
 head(tab_small)
+#>       ProteinName  FullPeptideName Charge aggr_Fragment_Annotation     quant short_name
+#> 1 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1  1200.270    d00_1_1
+#> 2 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y7_1  1635.659    d00_1_1
+#> 3 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y5_1  2130.497    d00_1_1
+#> 4 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y12_1  2324.244    d00_1_1
+#> 5 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y10_1  2853.498    d00_1_1
+#> 6 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1 27360.707    d05_1_2
 ```
 
 Then we plot a histogram of the data to examine the data distribution
 
-```{r, eval=local_file_exist, include=TRUE, fig.width=6.5, fig.height=4.5}
+
+``` r
 hist(log2(tab_small[, "quant"]), 100, main = "Histogram of log2 intensities", 
      col = "steelblue", border = "steelblue", freq = FALSE)
 ```
+
+<img src="iq6-1.png" width="95%" style="display: block; margin: auto;" />
 
 Here we do not observe abnormal low-intensity values, and the default value intensity cutoff of zero is good.
 
 We follow the same procedure as for Spectronaut output for protein quantification. Nevertheless, we have to adapt the column names appropriately. Unique values in the `primary_id` column form the list of proteins to be quantified. A concatenation of the columns in `secondary_id` determines the fragment ions used for quantification. Unique values in the `sample_id` column form the list of samples. Finally, column `intensity_col` specifies the quantitative values.
 
-```{r, eval=FALSE, include = TRUE}
+
+``` r
 norm_data <- iq::preprocess(tab_small,
                             primary_id = "ProteinName", 
                             secondary_id = c("FullPeptideName", "Charge",
@@ -263,7 +292,8 @@ The MaxLFQ algorithm is implemented in the software package MaxQuant. Neverthele
 First, we read the protein quantification from MaxQuant output, ignoring entries detected in the reversed fasta database. The protein group table provides links to the underlying data in the MaxQuant _evidence.txt_ file.
 When LFQ values are available, we can store them in a table to compare the result of the **iq** implementation to that of MaxQuant.
 
-```{r, eval=local_file_exist, include = TRUE}
+
+``` r
 dda <- read.delim(gzfile("proteinGroups.txt.gz"))
 dda <- subset(dda, Reverse == "")    # remove reversed entries
 rownames(dda) <- dda[,"Protein.IDs"] # use protein group ids as rownames
@@ -278,7 +308,8 @@ colnames(dda_log2) <- sprintf("C%02d", 1:24)
 
 We first perform median normalization on intensities in the _evidence.txt_ file. Subsequently, we produce a list of protein as in the case of Spectronaut output in a variable _p\_list_.
 
-```{r, eval=local_file_exist, include = TRUE}
+
+``` r
 evidence <- read.delim(gzfile("evidence.txt.gz"), stringsAsFactors = FALSE)
 
 rownames(evidence) <- evidence[, "id"]
@@ -328,7 +359,8 @@ for (i in 1:nrow(dda)) {
 
 Once the protein list is created, we can perform the MaxLFQ algorithm for DDA as for DIA data. An example for MaxLFQ by MaxQuant and **iq** is shown here (rescaled so that the means of the two quantification values are equal). 
 
-```{r, eval=local_file_exist, include=TRUE, fig.width=6.5, fig.height=4.5}
+
+``` r
 w1 <- iq::maxLFQ(p_list$A1L0T0)$estimate
 w2 <- as.numeric(dda_log2["A1L0T0", ])
 w2 <- w2 - mean(w2, na.rm = TRUE) + mean(w1, na.rm = TRUE)
@@ -342,9 +374,12 @@ iq::plot_protein(tmp,
                  col = c(rep("gray", nrow(p_list$A1L0T0)), "green", "blue"))  
 ```
 
+<img src="iq7-1.png" width="95%" style="display: block; margin: auto;" />
+
 Finally, we write out the result of MaxLFQ quantification to a text file. 
 
-```{r, eval=FALSE, include = TRUE}
+
+``` r
 output_mq <- iq::create_protein_table(p_list)
 
 write.table(cbind(Protein = rownames(output_mq$estimate),
@@ -360,7 +395,8 @@ The tab-separated text file _output_IQ_LFQ.txt_ now contains the MaxLFQ values b
 
 We also implement the topN method, the MeanInt method, and the median polish method by introducing the `method` parameter to the _iq::create\_protein\_table()_ function. We create outputs for all different methods in the following. Here, the variable _protein\_list_ is from the Spectronaut or OpenSWATH example.
 
-```{r, eval=FALSE, include = TRUE}
+
+``` r
 # default MaxLFQ
 output <- iq::create_protein_table(protein_list)
 

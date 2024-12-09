@@ -1,3 +1,7 @@
+## Version 1.10.1
+
+- add support for processing a data frame in the function 'process_long_format'.
+
 ## Version 1.9.12
 
 - fix some C++ warnings size_t to int
