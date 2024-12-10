@@ -37,7 +37,7 @@ require("arrow")
 # install.packages("arrow") 
 ```
 
-The following is an ```iq``` function call to filter on the ```Q.Value```, ```PG.Q.Value```, ```Lib.Q.Value```, and ```Lib.PG.Q.Value``` for a match-between run (MBR) DIA-NN search as discussed [here](https://github.com/vdemichev/DiaNN/discussions/1172#discussioncomment-10680048)
+The following is an ```iq``` function call to filter on the ```Q.Value```, ```PG.Q.Value```, ```Lib.Q.Value```, and ```Lib.PG.Q.Value``` for a match-between run (MBR) DIA-NN search as discussed [here](https://github.com/vdemichev/DiaNN/discussions/1172#discussioncomment-10680048).
 
 ```
 process_long_format(arrow::read_parquet("report.parquet"), 
