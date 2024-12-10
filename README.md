@@ -29,24 +29,15 @@ library("iq")
 
 ***To process a DIA-NN output***
 
-DIA-NN 1.9.2 uses the parquet data format for output. We can use the R package ```arrow``` to read the data.
+DIA-NN 1.9.2 uses the parquet data format for output. We can use the R package ```arrow``` to read the data. 
 
 ```
 require("arrow")
 # if the package "arrow" is not available, you can install it by 
 # install.packages("arrow") 
-
-# For match-between run (MBR) search, the recommended filtering is
-process_long_format(arrow::read_parquet("report.parquet"), 
-                    output_filename = "report-protein-group.txt", 
-                    sample_id = "Run",
-                    intensity_col = "Precursor.Normalised",
-                    intensity_col_sep = NULL,
-                    annotation_col = c("Protein.Ids","Protein.Names", "Genes"),
-                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
 ```
 
-For DIA-NN search without MBR
+The following is an ```iq``` function call to filter on the ```Q.Value```, ```PG.Q.Value```, ```Lib.Q.Value```, and ```Lib.PG.Q.Value``` for a match-between run (MBR) DIA-NN search as discussed [here](https://github.com/vdemichev/DiaNN/discussions/1172#discussioncomment-10680048)
 
 ```
 process_long_format(arrow::read_parquet("report.parquet"), 
@@ -55,10 +46,24 @@ process_long_format(arrow::read_parquet("report.parquet"),
                     intensity_col = "Precursor.Normalised",
                     intensity_col_sep = NULL,
                     annotation_col = c("Protein.Ids","Protein.Names", "Genes"),
-                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", "Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"))
+                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
+                                           "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
 ```
 
-We can still use the tsv file as follows, for example for a search with MBR
+Similarly, for a DIA-NN search without MBR
+
+```
+process_long_format(arrow::read_parquet("report.parquet"), 
+                    output_filename = "report-protein-group.txt", 
+                    sample_id = "Run",
+                    intensity_col = "Precursor.Normalised",
+                    intensity_col_sep = NULL,
+                    annotation_col = c("Protein.Ids","Protein.Names", "Genes"),
+                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
+                                           "Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"))
+```
+
+We can still process a tsv output file as follows, for example for a search with MBR
 
 ```
 process_long_format("report.tsv", 
@@ -67,7 +72,8 @@ process_long_format("report.tsv",
                     intensity_col = "Precursor.Normalised",
                     intensity_col_sep = NULL,
                     annotation_col = c("Protein.Ids","Protein.Names", "Genes"),
-                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
+                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
+                                           "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
 ```
 
 Use the paramter `peptide_extractor` if you want to get the number of peptides per protein, again for example with MBR
@@ -79,7 +85,8 @@ process_long_format(arrow::read_parquet("report.parquet"),
                     intensity_col = "Precursor.Normalised",
                     intensity_col_sep = NULL,
                     annotation_col = c("Protein.Ids","Protein.Names", "Genes"),
-                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"),
+                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
+                                           "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"),
                     peptide_extractor = function(x) gsub("[0-9].*$", "", x))
 ```
 
@@ -92,7 +99,8 @@ process_long_format("Spectronaut_Report.xls",
                     output_filename = "iq-MaxLFQ.tsv", 
                     sample_id  = "R.FileName",
                     primary_id = "PG.ProteinGroups",
-                    secondary_id = c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge", "F.FrgLossType"),
+                    secondary_id = c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", 
+                                     "F.Charge", "F.FrgLossType"),
                     intensity_col = "F.PeakArea",
                     annotation_col = c("PG.Genes", "PG.ProteinNames", "PG.FastaFiles"),
                     filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
