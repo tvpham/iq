@@ -29,7 +29,19 @@ library("iq")
 
 ***To process a DIA-NN output***
 
-DIA-NN 1.9.2 uses the parquet data format for output. We can use the R package ```arrow``` to read the data. 
+The following is an ```iq``` function call to filter on the ```Q.Value```, ```PG.Q.Value```, ```Lib.Q.Value```, and ```Lib.PG.Q.Value``` for a match-between run (MBR) DIA-NN search as discussed [here](https://github.com/vdemichev/DiaNN/discussions/1172#discussioncomment-10680048).
+
+```
+process_long_format("report.tsv", 
+                    sample_id = "Run",
+                    intensity_col = "Fragment.Quant.Raw",
+                    output_filename = "report-pg-global.txt", 
+                    annotation_col = c("Protein.Names", "Genes"),
+                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
+                                           "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
+```
+
+Nevertheless, DIA-NN version 1.9.2 uses the parquet data format for output. We can use the R package ```arrow``` to read the data. 
 
 ```
 require("arrow")
@@ -37,7 +49,7 @@ require("arrow")
 # install.packages("arrow") 
 ```
 
-The following is an ```iq``` function call to filter on the ```Q.Value```, ```PG.Q.Value```, ```Lib.Q.Value```, and ```Lib.PG.Q.Value``` for a match-between run (MBR) DIA-NN search as discussed [here](https://github.com/vdemichev/DiaNN/discussions/1172#discussioncomment-10680048) and [here](https://github.com/vdemichev/DiaNN/discussions/951#discussioncomment-8631014).
+However, the fragment intensities are not reported in ```Fragment.Quant.Raw``` in the parquet file. We can use the aggregated fragment intensities in ```Precursor.Normalised```as discussed [here](https://github.com/vdemichev/DiaNN/discussions/951#discussioncomment-8631014).
 
 ```
 process_long_format(arrow::read_parquet("report.parquet"), 
