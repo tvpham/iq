@@ -75,19 +75,6 @@ process_long_format(arrow::read_parquet("report.parquet"),
                                            "Global.Q.Value" = "0.01", "Global.PG.Q.Value" = "0.01"))
 ```
 
-We can still process a tsv output file as follows, for example for a search with MBR
-
-```
-process_long_format("report.tsv", 
-                    output_filename = "report-protein-group.txt", 
-                    sample_id = "Run",
-                    intensity_col = "Precursor.Normalised",
-                    intensity_col_sep = NULL,
-                    annotation_col = c("Protein.Ids","Protein.Names", "Genes"),
-                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
-                                           "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
-```
-
 Use the paramter `peptide_extractor` if you want to get the number of peptides per protein, again for example with MBR
 
 ```
