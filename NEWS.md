@@ -1,3 +1,8 @@
+## Version 2.0.0
+
+- support iq format
+- fast algorithms for MaxLFQ, robust linear model, median polish, and weighted methods.
+
 ## Version 1.10.1
 
 - add support for processing a data frame in the function 'process_long_format'.

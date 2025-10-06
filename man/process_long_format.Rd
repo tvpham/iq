@@ -27,7 +27,8 @@ process_long_format(input_data,
                     pdf_width = 12,
                     pdf_height = 8,
                     show_boxplot = TRUE,
-                    peptide_extractor = NULL)
+                    peptide_extractor = NULL,
+                    rfasta = NULL)
 }
 \arguments{
   \item{input_data}{A data frame or a filename. See \code{filename} in \code{\link{fast_read}}.}
@@ -50,13 +51,15 @@ process_long_format(input_data,
   \item{pdf_width}{See \code{pdf_width} in \code{\link{fast_preprocess}}.}
   \item{pdf_height}{See \code{pdf_height} in \code{\link{fast_preprocess}}.}
   \item{show_boxplot}{See \code{show_boxplot} in \code{\link{fast_preprocess}}.}
-  \item{peptide_extractor}{A function to parse peptides.}
+  \item{peptide_extractor}{A function to parse peptides}
+  \item{rfasta}{If available, calculates the sequence coverage.}
 }
 \value{
 Either an input data frame is processed with \code{\link{fast_MaxLFQ}} or an input file is processed with \code{\link{fast_read}}, \code{\link{fast_preprocess}}, and \code{\link{fast_MaxLFQ}}.
 Subsequently, the result is written to \code{output_filename}. The quantification values are in log2 space.
 A \code{NULL} value is returned. If \code{peptide_extractor} is not \code{NULL}, fragment statistics
 for each protein will be calculated based on the result of the extractor function. Counting the number of peptides contributing to a protein is possible using an appropriate extractor function. An example value for \code{peptide_extractor} is \code{function(x) gsub("[0-9].*$", "", x)}, which removes the charge state and fragment descriptors in an ion descriptor to obtain unique peptide sequences. One can examine the \code{ion} component returned by the \code{\link{fast_read}} function to derive a regular expression to be used in the \code{gsub} function above.
+Another example is \code{function(x) gsub("\\(UniMod:\\d+\\)|\\d|_", "", x)} which removes annotations for modifications on the peptides.
 }
 \references{
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein

@@ -1,7 +1,7 @@
 Package: iq
 Type: Package
 Title: Protein Quantification in Mass Spectrometry-Based Proteomics
-Version: 1.10.1
+Version: 2.0.0
 Authors@R: c(person("Thang", "Pham", email = "t.pham@amsterdamumc.nl",
                     role = c("aut", "cre", "cph", "ctb"),
                     comment = c(ORCID = "0000-0003-0333-2492")),
@@ -14,8 +14,8 @@ Description: An implementation of the MaxLFQ algorithm by
     pipeline for processing proteomics data in data-independent acquisition mode
     (Pham et al. 2020 <doi:10.1093/bioinformatics/btz961>).
     It offers additional options for protein quantification using
-    the N most intense fragment ions, using all fragment ions, and
-    a wrapper for the median polish algorithm by Tukey (1977, ISBN:0201076160).
+    the N most intense fragment ions, using all fragment ions, 
+    the median polish algorithm by Tukey (1977, ISBN:0201076160), and a robust linear model.
     In general, the tool can be used to integrate multiple 
     proportional observations into a single quantitative value.
 Depends: R (>= 2.10)

@@ -1,5 +1,4 @@
-/*
-#########################################################################
+/*#########################################################################
 
 Author: Thang V. Pham, t.pham@amsterdamumc.nl
 
@@ -11,10 +10,9 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 1.9.11
+Software version: 2.0
 
-#########################################################################
-*/
+#########################################################################*/
 
 #include <algorithm>
 #include <cmath>
@@ -41,8 +39,14 @@ Software version: 1.9.11
 #include <R_ext/Utils.h>
 #include <Rinternals.h>
 
+#include "utils.h"
+#include "maxlfq.h"
+#include "maxlfq_bit.h"
+#include "coordinate_descent.h"
+
 extern "C" SEXP iq_filter(SEXP);
 extern "C" SEXP iq_MaxLFQ(SEXP);
+extern "C" SEXP iq_quant(SEXP);
 
 using namespace std;
 
@@ -1477,6 +1481,146 @@ int tp_check() {
     return (R_ToplevelExec(tp_user, NULL) == FALSE);
 }
 
+/******************
+iq format 
+*******************/
+
+double dist(double *a, int step, double *b, int n) {
+    
+    double sum = 0;
+    int t = 0;
+    
+    double *ap = a;
+    for (int i = 0; i < n; i++) {
+        if (!isnan(*ap) && !isnan(b[i])) {
+            t++;
+            sum += (*ap - b[i]);
+        }
+        ap+= step;
+    }
+    
+    double m = sum / t;
+    
+    double d2 = 0;
+    
+    ap = a;
+    for (int i = 0; i < n; i++) {
+        if (!isnan(*ap) && !isnan(b[i])) {
+            double d =  (*ap - b[i] - m);
+            d2 += d*d;
+        }
+        ap+= step;
+    }
+    
+    if (t == 0) {
+        return NAN;
+    }
+    
+    if (t == 1) {
+        //std::cout << "d2 = " << d2 << endl;
+        return NAN;
+    }
+    
+    return sqrt((double)n / t * (d2));
+}
+
+void missing_value_weight(double* X, int* M, int* N,
+                          double* w) {
+    
+    for (int i = 0; i < *M; i++) {
+        
+        double* pX = X + i;
+        int cc = *N;
+        
+        for(int j = 0; j < *N; j++) {
+            if (isnan(*pX)) {
+                cc--;
+            }
+            pX += *M;
+        }
+        
+        w[i] = (double)cc / (double)*N;
+        
+        /*
+         if (cc == 0) {
+         w[i] = 0;
+         }
+         else {
+         w[i] = (double)cc / (double)*N;
+         }
+         */
+    }
+}
+
+void huber_weight(double* X, int* M, int* N,
+                  double *b,
+                  double* w,                  //w pre-allocated
+                  double k = 1.4826,
+                  double c = 1.345) {                
+    
+    // absolute deviation
+    double* abs_deviation = new double[*M];
+    int mm = 0;
+    
+    for (int i = 0; i < *M; i++) {
+        w[i] = dist(X+i, *M, b, *N); // residual
+        
+        if (!isnan(w[i])) {
+            abs_deviation[mm++] = w[i];
+        }
+    }
+    
+    // mad of residuals
+    if (mm == 0) {
+        for (int i = 0; i < *M; i++) {
+            w[i] = 1.0;
+        }
+        delete [] abs_deviation;
+        return;
+    }
+    
+    double m = quick_median(abs_deviation, mm);
+    
+    int mm2 = 0;
+    for (int i = 0; i < *M; i++) {
+        if (!isnan(w[i])) {
+            abs_deviation[mm2] = abs(w[i] - m);
+        }
+    }
+    
+    // mad
+    m = quick_median(abs_deviation, mm2) * k;
+    
+    if (m < 1e-10) {
+        for (int i = 0; i < *M; i++) {
+            w[i] = 1.0;
+        }
+        delete [] abs_deviation;
+        return;
+    }
+    
+    //cout << "m=" << m << endl;
+    
+    delete [] abs_deviation;
+    
+    // huber psi
+    for (int i = 0; i < *M; i++) {
+        if (!isnan(w[i])) {
+            w[i] = abs(w[i] / m); // rescale
+            
+            if (w[i] <= c) {
+                w[i] = 1;
+            }
+            else {
+                w[i] = c / w[i];
+            }
+        }
+        else {
+            w[i] = 1;
+        }
+    }
+}
+
 // [[Rcpp::export]]
 SEXP iq_MaxLFQ(SEXP list) {
 
@@ -1721,9 +1865,337 @@ SEXP iq_MaxLFQ(SEXP list) {
     return (vec);
 }
 
+// [[Rcpp::export]]
+extern "C" {
+    
+SEXP iq_quant(SEXP list) {
+        
+    double* X;
+    int* M;
+    int* N;
+    int* method;
+    double* p1;
+    int* p2;
+    double* k;
+    int* min_M;
+    int* threads;
+        
+    try {
+        X = REAL(get_list_element(list, "X"));
+        M = INTEGER(get_list_element(list, "M"));
+        N = INTEGER(get_list_element(list, "N"));
+        method = INTEGER(get_list_element(list, "method"));
+        p1 = REAL(get_list_element(list, "p1"));
+        p2 = INTEGER(get_list_element(list, "p2"));
+        k = REAL(get_list_element(list, "k"));
+        min_M = INTEGER(get_list_element(list, "min_M"));
+        threads = INTEGER(get_list_element(list, "n_threads"));
+    }
+    catch (exception & e) {
+        Rprintf("%s\n", e.what());
+        return (R_NilValue);
+    }
+        
+    SEXP x = PROTECT(Rf_allocVector(REALSXP, *N));
+    double* _x = REAL(x);
+    SEXP s = PROTECT(Rf_allocVector(REALSXP, *M));
+    double* _s = REAL(s);
+        
+    // calculate mean data
+    int no_t = 0;
+        
+    double sum = 0.0;
+        
+    for (int i = 0; i < (*M) * (*N); i++) {
+        if (!isnan(X[i])) {
+            no_t++;
+            sum += X[i];
+        }
+    }
+        
+    if (no_t == 0) {
+        // all NA
+        fill_n(_x, *N, NAN);
+        fill_n(_s, *M, NAN);
+    }
+    else {
+            
+        int no_threads = 1;
+            
+        #ifdef _OPENMP
+        omp_set_dynamic(0);
+        int tmp = omp_get_num_procs();
+            
+        if (*threads > 0) {
+            no_threads = tmp >= *threads ? *threads : tmp;
+        }
+        else {
+            no_threads = tmp + *threads;
+        }
+            
+        if (no_threads < 1) {
+            no_threads = 1;
+        }
+        omp_set_num_threads(no_threads);
+            
+        #endif
+            
+        switch (*method) {
+            
+            case 0: // maxlfq
+
+            {
+                int n_samples = *N;
+                
+                std::unordered_map<int, std::vector<double>>* map = new std::unordered_map<int, std::vector<double>>;
+                
+                for (int i = 0; i < *M; i++) {
+                    (*map)[i].resize(*N);
+                    for (int j = 0; j < *N; j++) {
+                        (*map)[i][j] = X[j * (*M) + i];
+                    }
+                }
+                
+                    int *gr = new int[n_samples];
+                    if (*method == 0) {
+                        maxlfq(*map, _x, gr);
+                    }
+
+                    delete [] gr;
+
+                delete map;
+                
+                break;
+            }
+            case 1: // maxlfq_bit
+            {
+                maxlfq_bit(X, *M, *N, _x, no_threads, *p2);
+                break;
+            }
+            case 2: // weighted maxlfq
+            {
+                
+                int n_samples = *N;
+                
+                std::unordered_map<int, std::vector<double>>* map = new std::unordered_map<int, std::vector<double>>;
+                
+                for (int i = 0; i < *M; i++) {
+                    (*map)[i].resize(*N);
+                    for (int j = 0; j < *N; j++) {
+                        (*map)[i][j] = X[j * (*M) + i];
+                    }
+                }
+                
+                
+                int *gr = new int[n_samples];
+                
+                double* w = new double[*M];
+                
+                
+                maxlfq(*map, _x, gr);
+                
+                if (*M >= *min_M) {
+                    
+                    huber_weight(X, M, N, _x, w, 1.4826, *k);
+                    
+                    weighted_maxlfq(*map, _x, gr, w);
+                    
+                }
+                
+                
+                delete [] w;
+                delete [] gr;
+                delete map;
+                
+                break;
+            }
+                
+            case 3: // median polish
+            {
+                median_polish(X, *M, *N, _s, _x, no_threads, *p1, *p2);
+                break;
+            }
+                
+            case 4: // weighted median polish
+            {
+                if (*M == 1) {
+                    for (int j = 0; j < *N; j++) {
+                        _x[j] = X[j];
+                    }
+                }
+                else {
+                    median_polish(X, *M, *N, _s, _x, no_threads, *p1, *p2);
+                    
+                    if (*M >= *min_M) {
+                        
+                        double* w = new double[*M];
+                        
+                        huber_weight(X, M, N, _x, w, 1.4826, *k);
+                        
+                        weighted_median_polish(X, *M, *N, _s, _x, w, *p1, *p2);
+                        
+                        delete [] w;
+                    }
+                }
+                break;
+            }
+            case 5: // huber
+            {
+                huber(X, *M, *N, _s, _x, no_threads, *p1, (int)*p2);
+                break;
+            }
+            case 6: // weighted huber
+            {
+                huber(X, *M, *N, _s, _x, no_threads, *p1, (int)*p2);
+                
+                if (*M >= *min_M) {
+                    double* w = new double[*M];
+                    
+                    huber_weight(X, M, N, _x, w, 1.4826, *k);
+                    
+                    weighted_huber(X, *M, *N, _s, _x, w, no_threads, *p1, (int)*p2);
+                    
+                    delete [] w;
+                }
+                break;
+            }
+
+
+            default:
+                
+                Rprintf("Unknown method.\n");
+                fill_n(_x, *N, NAN);
+                fill_n(_s, *M, NAN);
+                break;
+                
+        }
+            
+    }
+        
+    int no_x = 0;
+    double sum_x = 0.0;
+        
+    for (int j = 0; j < *N; j++) {
+        if (!isnan(_x[j])) {
+            no_x++;
+            sum_x += _x[j];
+        }
+    }
+        
+    if (no_x > 0 ) {
+        // mean data
+        double mean_data = sum * (double)no_x / (double)no_t;
+            
+        // scaling
+        double delta = (mean_data - sum_x) / no_x;
+        for (int j = 0; j < *N; j++) {
+            if (!isnan(_x[j])) {
+                _x[j] += delta;
+            }
+        }
+    }
+        
+        
+    for (int i = 0; i < *M; i++) {
+        if (isnan(_s[i])) {
+            _s[i] = NA_REAL;
+        }
+    }
+    for (int i = 0; i < *N; i++) {
+        if (isnan(_x[i])) {
+            _x[i] = NA_REAL;
+        }
+    }
+        
+    // return list
+    SEXP vec = PROTECT(Rf_allocVector(VECSXP, 2));
+    SET_VECTOR_ELT(vec, 0, x);
+    SET_VECTOR_ELT(vec, 1, s);
+        
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+    SET_STRING_ELT(names, 0, Rf_mkChar("x"));
+    SET_STRING_ELT(names, 1, Rf_mkChar("s"));
+        
+    Rf_setAttrib(vec, R_NamesSymbol, names);
+        
+    UNPROTECT(4);
+        
+    return (vec);
+        
+}
+    
+    
+SEXP iq_connected_components(SEXP list) {
+        
+    double* X;
+    int* M;
+    int* N;
+        
+    try {
+        X = REAL(get_list_element(list, "X"));
+        M = INTEGER(get_list_element(list, "M"));
+        N = INTEGER(get_list_element(list, "N"));
+    }
+    catch (exception & e) {
+        Rprintf("%s\n", e.what());
+        return (R_NilValue);
+    }
+        
+    SEXP components = PROTECT(Rf_allocVector(INTSXP, *N));
+    int* _components = INTEGER(components);
+    int no_component;
+        
+    connected_components(X, *M, *N, _components, no_component);
+        
+    UNPROTECT(1);
+        
+    return (components);
+}
+    
+SEXP iq_huber_weight(SEXP list) {
+        
+    double* X;
+    int* M;
+    int* N;
+        
+    double* x;
+        
+    try {
+        X = REAL(get_list_element(list, "X"));
+        M = INTEGER(get_list_element(list, "M"));
+        N = INTEGER(get_list_element(list, "N"));
+        x = REAL(get_list_element(list, "x"));
+    }
+        
+    catch (exception & e) {
+        Rprintf("%s\n", e.what());
+        return (R_NilValue);
+    }
+        
+    SEXP w = PROTECT(Rf_allocVector(REALSXP, *M));
+    double* _w = REAL(w);
+        
+    huber_weight(X, M, N, x, _w);
+        
+    for (int i = 0; i < *M; i++) {
+        if (isnan(_w[i])) {
+            _w[i] = 0;
+        }
+    }
+        
+    UNPROTECT(1);
+        
+    return (w);
+}
+}
+
+
 static const R_CallMethodDef callMethods[]  = {
     {"iq_filter", (DL_FUNC) &iq_filter, 1},
     {"iq_MaxLFQ", (DL_FUNC) &iq_MaxLFQ, 1},
+    {"iq_quant", (DL_FUNC) &iq_quant, 1},
+    {"iq_connected_components", (DL_FUNC) &iq_connected_components, 1},
+    {"iq_huber_weight", (DL_FUNC) &iq_huber_weight, 1},
     {NULL, NULL, 0}
 };
 

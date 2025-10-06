@@ -243,7 +243,8 @@ process_long_format <- function(input_data,
                                 pdf_width = 12,
                                 pdf_height = 8,
                                 show_boxplot = TRUE,
-                                peptide_extractor = NULL) {
+                                peptide_extractor = NULL,
+                                rfasta = NULL) {
 
 
     if (normalization == "median") {
@@ -383,7 +384,8 @@ process_long_format <- function(input_data,
                         filter_string_equal = filter_string_equal,
                         filter_string_not_equal = filter_string_not_equal,
                         filter_double_less = filter_double_less,
-                        filter_double_greater = filter_double_greater)
+                        filter_double_greater = filter_double_greater,
+                        na_string = na_string)
 
     if (!is.null(iq_dat)) {
         iq_norm_data <- fast_preprocess(iq_dat$quant_table,
@@ -401,8 +403,11 @@ process_long_format <- function(input_data,
 
         if (!is.null(peptide_extractor)) {
             message("Calculating fragment statistics... ")
-            s <- matrix(0, nrow = nrow(iq_dat$protein), ncol = 2)
-            colnames(s) <- c("n_fragments", "n_peptides")
+            
+            s <- matrix("", nrow = nrow(iq_dat$protein), 
+                        ncol = if (is.null(rfasta)) 4 else 5)
+            
+            colnames(s) <- if (is.null(rfasta)) c("n_fragments", "n_peptides", "peptides", "XIC") else c("n_fragments", "n_peptides", "peptides", "XIC", "coverage")
 
             n_display <- nrow(s) %/% 20
 
@@ -411,12 +416,42 @@ process_long_format <- function(input_data,
                 if (n_display > 0 && i %% n_display == 0) {
                     message(format(i * 100 / nrow(s), digits = 2), "%")
                 }
+                
+                index <- iq_dat$quant_table$protein_list == i
+                XIC <- sum(iq_dat$quant_table$quant[index])
+                s[i, 4] <- XIC
 
-                ind <- unique(iq_dat$quant_table$id[iq_dat$quant_table$protein_list == i])
+                ind <- unique(iq_dat$quant_table$id[index])
                 frags <- iq_dat$ion[ind]
                 s[i, 1] <- length(frags)
                 frags <- unique(peptide_extractor(frags))
                 s[i, 2] <- length(frags)
+                s[i, 3] <- paste(frags, collapse = ";")
+
+                if (!is.null(rfasta)) {
+                    pname <- iq_dat$protein[i]
+                    aa <- unlist(strsplit(pname, ";"))
+                    if (length(aa) >0) {
+                        coverages <- rep(0, length(aa))
+                        for (i2 in 1:length(aa)) {
+                            seq <- rfasta[[aa[i2]]]
+                            if (!is.null(seq)) {
+                                tmp <- rep(0, nchar(seq))
+                                for (i3 in 1:length(frags)) {
+                                    bb <- gregexpr(frags[i3], seq, fixed = TRUE)[[1]]
+                                    for (i4 in 1:length(bb)) {
+                                        tmp[bb[i4] : (bb[i4] + nchar(frags[i3])-1)] <- 1
+                                    }
+                                }
+                                coverages[i2] <- round(sum(tmp) * 100 / length(tmp))
+                            }
+                            else {
+                                cat(aa[i2],"\n")
+                            }
+                        }
+                        s[i, 5] <- paste(paste0(coverages, "%"), collapse = ";")
+                    }
+                }
             }
             message("Completed. ")
         }
