@@ -7,6 +7,11 @@ This R package provides an implementation of the MaxLFQ algorithm by Cox et al. 
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, _Bioinformatics_ 2020 Apr 15;36(8):2611-2613.
 [https://doi.org/10.1093/bioinformatics/btz961](https://doi.org/10.1093/bioinformatics/btz961)
 
+For [version 2](#version2), please cite
+
+Pham TV, Tran CT, Henneman AA, Pham LH, Le DG, Can AH, Bui PH, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _bioRxiv_. 2025:2025-10.
+[https://doi.org/10.1101/2025.10.06.680769](https://doi.org/10.1101/2025.10.06.680769)
+
 ## Installation
 
 The package is hosted on CRAN. It is best to install from within R.
@@ -131,3 +136,106 @@ process_long_format("Spectronaut_Report.xls",
                     filter_double_less = c("PG.Qvalue" = "0.01", "EG.Qvalue" = "0.01"),
                     log2_intensity_cutoff = 0)
 ```
+
+<a id="version2"></a>
+## Version 2
+***A simple example***
+
+Quantify a data matrix for a single protein
+```
+X <- matrix(c(10, 12, 12, NA, NA, 10), nrow = 2, 
+            dimnames = list(c("ion1", "ion2"), 
+                            c("sample1", "sample2", "sample3")))
+
+#      sample1 sample2 sample3
+# ion1      10      12      NA
+# ion2      12      NA      10
+
+iq::process_matrix(X, method = "maxlfq_bit")
+
+# [1] 11 13  9
+```
+
+The result by maxlfq-bit shows that sample2 is 4-fold higher than sample1 (difference of 2 in log2 space). This two samples share ion1 only whose quantitative difference is reflected in the result. Similarly, sample 1 is 4-fold higher than sample3.
+
+***The new iq data format***
+
+A new data format is introduced to support large-scale data processing. This example convert the usual tab-deliminated format file [Bruderer15-DIA-longformat-compact.txt](https://github.com/tvpham/iq/releases/download/v1.1/Bruderer15-DIA-longformat-compact.txt.gz) to the new iq format
+
+```
+primary_id <- "PG.ProteinGroups"
+sample_id  <- "R.Condition" 
+secondary_id <- c("EG.ModifiedSequence", "FG.Charge", "F.FrgIon", "F.Charge")
+annotation_col <- c("PG.Genes", "PG.ProteinNames")
+
+iq::long_format_to_iq_format("E:/devops/iq-dev/branches/_test/Bruderer15-DIA-longformat-compact.txt", "bruderer15.iq", 
+                        primary_id = primary_id,
+                        secondary_id = secondary_id,
+                        sample_id = sample_id,
+                        annotation_col = annotation_col,
+                        intensity_col = "F.PeakArea",
+                        intensity_col_sep = NULL,
+                        normalization = "median")
+```
+
+The new data is contained in a folder **bruderer15.iq**. Then we can process the data using different method
+
+```
+iq::process_iq_format("bruderer15.iq", output_filename = "result-maxlfq_bit.tsv",
+                      method = "maxlfq_bit")
+
+iq::process_iq_format("bruderer15.iq", output_filename = "result-maxlfq.tsv",
+                      method = "maxlfq")
+
+a <- read.delim("result-maxlfq.tsv")
+b <- read.delim("result-maxlfq_bit.tsv")
+
+max(a[,4:27] - b[,4:27], na.rm = TRUE)
+# [1] 1.012523e-13
+
+min(a[,4:27] - b[,4:27], na.rm = TRUE)
+# [1] -1.012523e-13
+```
+The new method _maxlfq-bit_ and the current implementation _maxlfq_ should give the same result within the tolerance of floating-point arithmetic.
+
+
+***Cluster processing***
+
+The iq data format makes it very easy to process subsets of proteins on different processing nodes. Here is an example of using the Dutch national grid for processing. You will need to adapt the shell script to your cluster processing and storage architecture.
+```
+#!/bin/bash
+#SBATCH --array=0-119
+#SBATCH --time=5:00
+#SBATCH --mem=32G
+
+RANGES_FILE=ranges.txt
+
+LOCAL_DIR=/gpfs/work4/0/prjs0919/iq/cluster-processing
+
+R_SCRIPT=$LOCAL_DIR/script.R
+
+OUTPUT_DIR=$LOCAL_DIR/res_files
+INPUT_DIR=$LOCAL_DIR/data.iq
+
+RANGES_FILE=$LOCAL_DIR/ranges.txt
+
+mapfile -t <$RANGES_FILE PROTEIN_RANGES
+
+# This needs to be syncronized by hand with the
+# --array length
+# wc -l ranges.txt
+## 120 ranges.txt
+
+RANGE_VALUES=${PROTEIN_RANGES[$SLURM_ARRAY_TASK_ID]}
+
+module load 2024
+module load R/4.4.2-gfbf-2024a
+
+OUTPUT_FILE_PREFIX=$OUTPUT_DIR/res
+METHOD="maxlfq_bit"
+
+srun $R_SCRIPT $INPUT_DIR $OUTPUT_FILE_PREFIX $METHOD $RANGE_VALUES
+
+```
+
+In this example, we process a dataset of 11987 proteins (**data.iq**) using the **maxlfq_bit** algorithm. We split the data into 120 partitions (file **ranges.txt**). An R script **script.R** is called in each node to process the data.
