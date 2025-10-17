@@ -168,7 +168,7 @@ sample_id  <- "R.Condition"
 secondary_id <- c("EG.ModifiedSequence", "FG.Charge", "F.FrgIon", "F.Charge")
 annotation_col <- c("PG.Genes", "PG.ProteinNames")
 
-iq::long_format_to_iq_format("E:/devops/iq-dev/branches/_test/Bruderer15-DIA-longformat-compact.txt", "bruderer15.iq", 
+iq::long_format_to_iq_format("Bruderer15-DIA-longformat-compact.txt", "bruderer15.iq", 
                         primary_id = primary_id,
                         secondary_id = secondary_id,
                         sample_id = sample_id,
@@ -201,7 +201,7 @@ The new method _maxlfq-bit_ and the current implementation _maxlfq_ should give 
 
 ***Cluster processing***
 
-The iq data format makes it very easy to process subsets of proteins on different processing nodes. Here is an example of using the Dutch national grid for processing. You will need to adapt the shell script to your cluster processing and storage architecture.
+The iq data format makes it very easy to process subsets of proteins on different processing nodes. Here is an example of using the Dutch national computing cluster for processing. You will need to adapt the shell script to your cluster processing and storage architecture.
 ```
 #!/bin/bash
 #SBATCH --array=0-119
