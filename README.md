@@ -9,7 +9,7 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein 
 
 For [version 2](#version2), please cite
 
-Pham TV, Tran CT, Henneman AA, Pham LH, Le DG, Can AH, Bui PH, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _bioRxiv_. 2025:2025-10.
+Pham TV, Tran CT, Henneman AA, Pham LH, Le DG, Can AH, Bui PH, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _bioRxiv_. 2025:2025.10.06.680769.
 [https://doi.org/10.1101/2025.10.06.680769](https://doi.org/10.1101/2025.10.06.680769)
 
 ## Installation
