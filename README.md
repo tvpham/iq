@@ -1,3 +1,5 @@
+<center><img src="iq.svg" width="128"></center>
+
 # iq: an R package  for protein quantification
 
 This R package provides an implementation of the MaxLFQ algorithm by Cox et al. (2014) in a comprehensive pipeline for DIA-MS (Pham et al. 2020). It also offers options for protein quantification using the N most intense fragment ions, using all fragment ions, and the Tukey's median polish algorithm. In general, the tool can be used to integrate multiple proportional observations into a single quantitative value.
@@ -9,8 +11,8 @@ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein 
 
 For [version 2](#version2), please cite
 
-Pham TV, Tran CT, Henneman AA, Pham LH, Le DG, Can AH, Bui PH, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _bioRxiv_. 2025:2025.10.06.680769.
-[https://doi.org/10.1101/2025.10.06.680769](https://doi.org/10.1101/2025.10.06.680769)
+Pham TV, Tran CT, Henneman AA, Pham LH, Le DG, Can AH, Bui PH, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _J. Proteome Res_. 2026.
+[https://doi.org/10.1021/acs.jproteome.5c01038](https://doi.org/10.1021/acs.jproteome.5c01038)
 
 ## Installation
 
