@@ -1,4 +1,4 @@
-<center><img src="iq.svg" width="128"></center>
+<center><img src="iq-128x128.png"></center>
 
 # iq: an R package  for protein quantification
 
