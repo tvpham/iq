@@ -6,13 +6,15 @@ This R package provides an implementation of the MaxLFQ algorithm by Cox et al. 
 
 **Citation**
 
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _Journal of Proteome Research_ 2026 Feb 6; 25(2):1198–1203.
+[https://doi.org/10.1021/acs.jproteome.5c01038](https://doi.org/10.1021/acs.jproteome.5c01038)
+
+
+For version 1.x.x, please cite
+
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, _Bioinformatics_ 2020 Apr 15;36(8):2611-2613.
 [https://doi.org/10.1093/bioinformatics/btz961](https://doi.org/10.1093/bioinformatics/btz961)
 
-For [version 2](#version2), please cite
-
-Pham TV, Tran CT, Henneman AA, Pham LH, Le DG, Can AH, Bui PH, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _J. Proteome Res_. 2026.
-[https://doi.org/10.1021/acs.jproteome.5c01038](https://doi.org/10.1021/acs.jproteome.5c01038)
 
 ## Installation
 
@@ -139,8 +141,7 @@ process_long_format("Spectronaut_Report.xls",
                     log2_intensity_cutoff = 0)
 ```
 
-<a id="version2"></a>
-## Version 2
+## New in version 2
 ***A simple example***
 
 Quantify a data matrix for a single protein
