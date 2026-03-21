@@ -1,3 +1,8 @@
+## Version 2.0.1
+
+- ensure input data is a data frame
+- update citations
+
 ## Version 2.0.0
 
 - support iq format

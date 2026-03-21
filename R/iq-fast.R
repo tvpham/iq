@@ -270,7 +270,7 @@ process_long_format <- function(input_data,
             stop(paste0("The input data frame has no column: ", required_columns[which(is.na(index))[1]]))
         }
 
-        d <- input_data
+        d <- as.data.frame(input_data)
 
         if (!is.null(filter_string_equal)) {
             cmd <- paste0("d <- d[",

@@ -27,6 +27,8 @@ preprocess <- function(quant_table,
                        na_string = "0",
                        show_boxplot = TRUE) {
 
+    quant_table <- as.data.frame(quant_table)
+    
     if (!is.null(pdf_out)) {
         pdf(pdf_out, pdf_width, pdf_height)
     }
