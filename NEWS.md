@@ -1,3 +1,10 @@
+## Version 2.1.0
+
+- fix a bug in calculation of Huber weights
+- add the Huber weight function to R interface
+- fix a bug in weighted median
+- fix some unlikely memory leaks
+
 ## Version 2.0.1
 
 - ensure input data is a data frame

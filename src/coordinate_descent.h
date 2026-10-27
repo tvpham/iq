@@ -4,16 +4,17 @@
  
  All rights reserved.
  
- Citation:
+ Citations:
  
- Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
- protein abundances from ion quantification in DIA-MS-based proteomics,
- Bioinformatics 2020 Apr 15;36(8):2611-2613.
+ Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
+ Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
+ quantification algorithms in mass spectrometry-based proteomics.
+ Journal of Proteome Research 2026 Feb 6; 25(2):1198–1203.
  
- Software version: 2.0
+ Software version: 2.1
  
 #########################################################################*/
-
+ 
 #ifndef __CDW_H
 #define __CDW_H
 
@@ -70,6 +71,8 @@ void median_polish(double *X, const int M, const int N, double *s, double *x,
     }
     
     if (isnan(t)) {
+        delete[] a;
+        delete[] big_median_buffer;
         return;
     }
     
@@ -240,6 +243,8 @@ void weighted_median_polish(double *X, const int M, const int N,
     
 
     if (isnan(t)) {
+        delete[] a;
+        delete[] median_buffer;
         return;
     }
 
@@ -391,6 +396,7 @@ void weighted_least_squares(double *X, const int M, const int N, double *W, doub
     }
     
     if (isnan(t)) {
+        delete[] a;
         return;
     }
     
@@ -531,6 +537,7 @@ void huber(double *X, const int M, const int N, double *s, double *x,
     }
     
     if (isnan(t)) {
+        delete [] W;
         return;
     }
     
@@ -538,6 +545,7 @@ void huber(double *X, const int M, const int N, double *s, double *x,
     
     double sigma = mad(X, M, N, W, s, x);
     if (sigma < EPSILON) {
+        delete [] W;
         return;
     }
     
@@ -624,6 +632,7 @@ void weighted_huber(double *X, const int M, const int N, double *s, double *x,
     }
     
     if (isnan(t)) {
+        delete [] W;
         return;
     }
     
@@ -631,6 +640,7 @@ void weighted_huber(double *X, const int M, const int N, double *s, double *x,
     
     double sigma = mad(X, M, N, W, s, x);
     if (sigma < EPSILON) {
+        delete [] W;
         return;
     }
     

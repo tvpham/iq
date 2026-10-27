@@ -1,4 +1,7 @@
-<center><img src="iq-128x128.png"></center>
+<p align="center">
+<img src="iq.svg" width="200">
+</p>
+
 
 # iq: an R package  for protein quantification
 
@@ -43,13 +46,15 @@ library("iq")
 For version of DIA-NN prior to 2.0, the following is an ```iq``` function call to filter on the ```Q.Value```, ```PG.Q.Value```, ```Lib.Q.Value```, and ```Lib.PG.Q.Value``` for a match-between run (MBR) DIA-NN search as discussed [here](https://github.com/vdemichev/DiaNN/discussions/1172#discussioncomment-10680048).
 
 ```
-process_long_format("report.tsv", 
-                    sample_id = "Run",
-                    intensity_col = "Fragment.Quant.Raw",
-                    output_filename = "report-pg-global.txt", 
-                    annotation_col = c("Protein.Names", "Genes"),
-                    filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
-                                           "Lib.Q.Value" = "0.01", "Lib.PG.Q.Value" = "0.01"))
+iq::process_long_format("report.tsv", 
+                        sample_id = "Run",
+                        intensity_col = "Fragment.Quant.Raw",
+                        output_filename = "report-pg-global.txt", 
+                        annotation_col = c("Protein.Names", "Genes"),
+                        filter_double_less = c("Q.Value" = "0.01", 
+                                               "PG.Q.Value" = "0.05", 
+                                               "Lib.Q.Value" = "0.01", 
+                                               "Lib.PG.Q.Value" = "0.01"))
 ```
 
 DIA-NN version 2.0 uses the parquet data format for output. We can use the R package ```arrow``` to read the data. However, the fragment intensities are not reported by the default setting. To perform quantification using MS/MS fragments, one must switch on the --export-quant option. Then we can use R to create a .tsv as an intermediate step as follows
@@ -93,6 +98,21 @@ iq::process_long_format(arrow::read_parquet("report.parquet"),
                         filter_double_less = c("Q.Value" = "0.01", "PG.Q.Value" = "0.05", 
                                                "Lib.Q.Value" = "0.01", 
                                                "Lib.PG.Q.Value" = "0.01"))
+```
+
+Another recently recommended setting filtering on ```Lib.Peptidoform.Q.Value``` is
+```
+iq::process_long_format(arrow::read_parquet("report.parquet"),
+                        output_filename = "report-protein-group.txt", 
+                        sample_id = "Run",
+                        intensity_col = "Precursor.Normalised",
+                        intensity_col_sep = NULL,                                        
+                        annotation_col = c("Protein.Names", "Genes"),
+                        filter_double_less = c("Q.Value" = "0.01", 
+                                               "PG.Q.Value" = "0.05", 
+                                               "Lib.Peptidoform.Q.Value" = "0.01",
+                                               "Global.Q.Value" = "0.01", 
+                                               "Global.PG.Q.Value" = "0.01"))
 ```
 
 Similarly, for a DIA-NN search without MBR

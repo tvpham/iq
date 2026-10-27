@@ -5,13 +5,14 @@
  
  All rights reserved.
  
- Citation:
+ Citations:
  
- Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
- protein abundances from ion quantification in DIA-MS-based proteomics,
- Bioinformatics 2020 Apr 15;36(8):2611-2613.
+ Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
+ Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
+ quantification algorithms in mass spectrometry-based proteomics.
+ Journal of Proteome Research 2026 Feb 6; 25(2):1198–1203.
  
- Software version: 2.0
+ Software version: 2.1
  
 #########################################################################*/
 
@@ -41,6 +42,10 @@ struct weighted_sample_t {
 
 double quick_median(double *median_buffer, size_t n) {
     
+    if (n == 0) {
+        return NAN;
+    }
+
     const size_t mid = n / 2;
     
     std::nth_element(median_buffer, median_buffer + mid, median_buffer + n);
@@ -76,8 +81,9 @@ inline double weighted_median(std::vector<weighted_sample_t>& points, size_t n =
     for (size_t pos = 0; pos < n; pos++) {
         left_sum += points[pos].weight;
         if (left_sum >= sum_w) {
-            if (pos < (n-1)) {
-                return (left_sum * points[pos].value + (2*sum_w-left_sum)* points[pos+1].value)/((2*sum_w));
+            // exactly half the weight on each side: average the two middle values
+            if (left_sum == sum_w && pos < (n-1)) {
+                return (points[pos].value + points[pos+1].value) / 2.0;
             }
             return points[pos].value;
         }
@@ -238,6 +244,8 @@ void rescale(double* X, int M, int N, double *x, double *x_out) {
             }
         }
     }
+
+    delete[] components;
 }
 
 

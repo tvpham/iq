@@ -39,6 +39,8 @@ The value of \code{method} can be a function such as \code{function(x) log2(colS
 The result table is written to \code{output_filename}. A \code{NULL} value is returned.
 }
 \references{
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
+
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
 abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
 }

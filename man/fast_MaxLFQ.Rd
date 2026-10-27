@@ -20,8 +20,11 @@ A list is returned with two components
 \item{annotation}{A vector of strings indicating membership in case of multiple connected components for each row of \code{estimate}.}
 }
 \references{
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
+
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
 abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
+
 }
 \author{
 Thang V. Pham

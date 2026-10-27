@@ -4,18 +4,24 @@ Author: Thang V. Pham, t.pham@amsterdamumc.nl
 
 All rights reserved.
 
-Citation:
+Citations:
 
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
+Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
+quantification algorithms in mass spectrometry-based proteomics.
+Journal of Proteome Research 2026 Feb 6; 25(2):1198–1203.
+ 
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
 protein abundances from ion quantification in DIA-MS-based proteomics,
 Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 2.0
+Software version: 2.1
 
 #########################################################################*/
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 #include <cstdio>
@@ -73,6 +79,7 @@ public:
                 total++;
             }
         }
+        delete tmp;
         return total;
     }
 
@@ -110,13 +117,15 @@ public:
             }
             *n = BUFFER_SIZE;
 
-            *positions = (size_t *)realloc(*positions, (BUFFER_SIZE + 1) * sizeof(size_t));  // if NULL, realloc = malloc
-            if (*positions == NULL) {
-                if (*buffer) {
-                    free(*buffer);
-                }
+            size_t *new_positions = (size_t *)realloc(*positions, (BUFFER_SIZE + 1) * sizeof(size_t));  // if NULL, realloc = malloc
+            if (new_positions == NULL) {
+                free(*buffer);
+                free(*positions);
+                *buffer = NULL;
+                *positions = NULL;
                 throw runtime_error("Cannot allocate memory");
             }
+            *positions = new_positions;
         }
 
         *npos = 0;
@@ -160,24 +169,29 @@ public:
             }
 
             // OK, more data available extend buffer
-            *buffer = (char *)realloc(*buffer, *n * 2);
-            if (*buffer == NULL) {
-                if (*positions) {
-                    free(*positions);
-                }
+            // (grow into a temporary: a failed realloc returns NULL but keeps the old block)
+            char *new_buffer = (char *)realloc(*buffer, *n * 2);
+            if (new_buffer == NULL) {
+                free(*buffer);
+                free(*positions);
+                *buffer = NULL;
+                *positions = NULL;
                 throw runtime_error("Cannot allocate memory");
             }
+            *buffer = new_buffer;
             remaining_buffer_size = *n + 1;
             ptr = *buffer + (*n - 1);
             *n *= 2;
 
-            *positions = (size_t *)realloc(*positions, (*n + 1) * sizeof(size_t));  // if NULL, realloc = malloc
-            if (*positions == NULL) {
-                if (*buffer) {
-                    free(*buffer);
-                }
+            size_t *new_positions = (size_t *)realloc(*positions, (*n + 1) * sizeof(size_t));  // if NULL, realloc = malloc
+            if (new_positions == NULL) {
+                free(*buffer);
+                free(*positions);
+                *buffer = NULL;
+                *positions = NULL;
                 throw runtime_error("Cannot allocate memory");
             }
+            *positions = new_positions;
         }
     }
 
@@ -280,19 +294,20 @@ public:
         // check if the last buffer was full. If so, go back and increase buffer.
         if (left_pos == 0) {
             current = 1 - current;  // go back
-            buf_0 = (char *)realloc(buf_0, n * 2);
 
-            if (buf_0 == NULL) {
-                free(buf_1);
+            // grow into a temporary: a failed realloc returns NULL but keeps the old block,
+            // which the destructor frees
+            char *new_buf = (char *)realloc(buf_0, n * 2);
+            if (new_buf == NULL) {
                 return -1;
             }
+            buf_0 = new_buf;
 
-            buf_1 = (char *)realloc(buf_1, n * 2);
-
-            if (buf_1 == NULL) {
-                free(buf_0);
+            new_buf = (char *)realloc(buf_1, n * 2);
+            if (new_buf == NULL) {
                 return -1;
             }
+            buf_1 = new_buf;
 
             pos = right_pos;  // not 'n' because we did not read to the full of buffer
             n *= 2;
@@ -529,7 +544,15 @@ void process(const vector<string> &argv,
     size_t *tab_pos = NULL;
     size_t n_tab_pos = 0;
 
-    if (utils::getline_tab(&line, &len, fp, &tab_pos, &n_tab_pos) == -1) {
+    int header_status;
+    try {
+        header_status = utils::getline_tab(&line, &len, fp, &tab_pos, &n_tab_pos);
+    } catch (...) {
+        fclose(fp);  // getline_tab has already freed its buffers
+        throw;
+    }
+
+    if (header_status == -1) {
         fclose(fp);
         if (line) {
             free(line);
@@ -619,39 +642,51 @@ void process(const vector<string> &argv,
     //--- check header
     size_t n_cols = n_tab_pos;
 
+    // close the file and free the header buffers if a column is not found
+    auto map_header = [&](const char **column_names, size_t len, size_t *index) {
+        try {
+            utils::map_header(column_names, len, index, line, tab_pos, n_tab_pos);
+        } catch (...) {
+            fclose(fp);
+            free(line);
+            free(tab_pos);
+            throw;
+        }
+    };
+
     size_t col_sample_ind;
-    utils::map_header(&col_sample, 1, &col_sample_ind, line, tab_pos, n_tab_pos);
+    map_header(&col_sample, 1, &col_sample_ind);
 
     size_t col_primary_id_ind;
-    utils::map_header(&col_primary_id, 1, &col_primary_id_ind, line, tab_pos, n_tab_pos);
+    map_header(&col_primary_id, 1, &col_primary_id_ind);
 
     vector<size_t> col_secondary_ids_ind(col_secondary_ids.size());
-    utils::map_header(col_secondary_ids.data(), col_secondary_ids.size(), col_secondary_ids_ind.data(), line, tab_pos, n_tab_pos);
+    map_header(col_secondary_ids.data(), col_secondary_ids.size(), col_secondary_ids_ind.data());
 
     size_t col_quant_ind;
-    utils::map_header(&col_quant, 1, &col_quant_ind, line, tab_pos, n_tab_pos);
+    map_header(&col_quant, 1, &col_quant_ind);
 
     vector<size_t> col_annotations_ind(col_annotations.size());
-    utils::map_header(col_annotations.data(), col_annotations.size(), col_annotations_ind.data(), line, tab_pos, n_tab_pos);
+    map_header(col_annotations.data(), col_annotations.size(), col_annotations_ind.data());
 
     vector<size_t> col_filter_string_equal(filter_string_equal.size());
     for (size_t i = 0; i < filter_string_equal.size(); i++) {
-        utils::map_header(&(filter_string_equal[i].first), 1, &(col_filter_string_equal[i]), line, tab_pos, n_tab_pos);
+        map_header(&(filter_string_equal[i].first), 1, &(col_filter_string_equal[i]));
     }
 
     vector<size_t> col_filter_string_not_equal(filter_string_not_equal.size());
     for (size_t i = 0; i < filter_string_not_equal.size(); i++) {
-        utils::map_header(&(filter_string_not_equal[i].first), 1, &(col_filter_string_not_equal[i]), line, tab_pos, n_tab_pos);
+        map_header(&(filter_string_not_equal[i].first), 1, &(col_filter_string_not_equal[i]));
     }
 
     vector<size_t> col_filter_double_less(filter_double_less.size());
     for (size_t i = 0; i < filter_double_less.size(); i++) {
-        utils::map_header(&(filter_double_less[i].first), 1, &(col_filter_double_less[i]), line, tab_pos, n_tab_pos);
+        map_header(&(filter_double_less[i].first), 1, &(col_filter_double_less[i]));
     }
 
     vector<size_t> col_filter_double_greater(filter_double_greater.size());
     for (size_t i = 0; i < filter_double_greater.size(); i++) {
-        utils::map_header(&(filter_double_greater[i].first), 1, &(col_filter_double_greater[i]), line, tab_pos, n_tab_pos);
+        map_header(&(filter_double_greater[i].first), 1, &(col_filter_double_greater[i]));
     }
 
     annotation_colnames->push_back(string(col_primary_id));
@@ -661,7 +696,7 @@ void process(const vector<string> &argv,
 
     size_t intensity_col_id_ind;
     if (intensity_col_id) {
-        utils::map_header(&intensity_col_id, 1, &intensity_col_id_ind, line, tab_pos, n_tab_pos);
+        map_header(&intensity_col_id, 1, &intensity_col_id_ind);
     }
 
 
@@ -885,10 +920,15 @@ void process(const vector<string> &argv,
                 quant_vec_is_na_n->resize(_line->size());
             }
 
-            int line_mismatched = 0;
+            size_t line_mismatched = SIZE_MAX;  // first bad line number, SIZE_MAX if none
 
-            #pragma omp parallel for schedule(static)
+            #pragma omp parallel for schedule(static) reduction(min:line_mismatched)
             for (size_t n = 0; n < _line->size(); n++) {
+
+                (*quant_vec)[n].clear();
+                (*quant_id_vec)[n].clear();
+                (*quant_vec_is_na)[n].clear();
+                (*quant_vec_is_na_n)[n] = 0;
 
                 (*_tab)[n][0] = (*_line)[n];
                 size_t pos = 0;
@@ -897,25 +937,26 @@ void process(const vector<string> &argv,
                     if (*c == '\r') {
                         *c++ = 0;
                     } else if (*c == '\t') {
-                        *c = 0;
+                        *c++ = 0;
                         pos++;
-                        if (pos == n_cols) {
-                            line_mismatched = line_no + n + 1;
+                        if (pos < n_cols) {
+                            (*_tab)[n][pos] = c;
                         }
-                        (*_tab)[n][pos] = ++c;
                     } else {
                         c++;
                     }
                 }
 
-                if ((pos + 1) != n_cols) {
-                    line_mismatched = line_no + n + 1;
+                // blank line, ignored
+                if (pos == 0 && *(*_line)[n] == 0) {
+                    continue;
                 }
 
-                (*quant_vec)[n].clear();
-                (*quant_id_vec)[n].clear();
-                (*quant_vec_is_na)[n].clear();
-                (*quant_vec_is_na_n)[n] = 0;
+                // stop before touching columns the line does not have
+                if ((pos + 1) != n_cols) {
+                    line_mismatched = min(line_mismatched, line_no + n + 1);
+                    continue;
+                }
 
                 size_t i = 0;
                 while (i < filter_string_equal.size() && strcmp((*_tab)[n][col_filter_string_equal[i]], filter_string_equal[i].second) == 0) {
@@ -957,7 +998,7 @@ void process(const vector<string> &argv,
                                     if (intensity_col_id) {
                                         utils::split((*_tab)[n][intensity_col_id_ind], intensity_col_sep, &((*quant_id_vec)[n]));
                                         if ((*quant_vec)[n].size() != (*quant_id_vec)[n].size()) {
-                                            line_mismatched = line_no + n + 1;
+                                            line_mismatched = min(line_mismatched, line_no + n + 1);
                                         }
                                     }
                                 }
@@ -989,7 +1030,7 @@ void process(const vector<string> &argv,
                 }
             }
 
-            if (line_mismatched > 0) { // no exception in parallel regions
+            if (line_mismatched != SIZE_MAX) { // no exception in parallel regions
                 cleanup();
                 throw runtime_error(("Line " + to_string(line_mismatched) + ": the number of columns does not match header or quant values and ids.\n").c_str());
             }
@@ -1584,7 +1625,7 @@ void huber_weight(double* X, int* M, int* N,
     int mm2 = 0;
     for (int i = 0; i < *M; i++) {
         if (!isnan(w[i])) {
-            abs_deviation[mm2] = abs(w[i] - m);
+            abs_deviation[mm2++] = abs(w[i] - m);
         }
     }
     
@@ -1900,6 +1941,7 @@ SEXP iq_quant(SEXP list) {
     double* _x = REAL(x);
     SEXP s = PROTECT(Rf_allocVector(REALSXP, *M));
     double* _s = REAL(s);
+    fill_n(_s, *M, NA_REAL);  // only median polish and rlm compute fragment offsets
         
     // calculate mean data
     int no_t = 0;
@@ -2159,12 +2201,17 @@ SEXP iq_huber_weight(SEXP list) {
     int* N;
         
     double* x;
+    
+    double* c;
+    double* k;
         
     try {
         X = REAL(get_list_element(list, "X"));
         M = INTEGER(get_list_element(list, "M"));
         N = INTEGER(get_list_element(list, "N"));
         x = REAL(get_list_element(list, "x"));
+        c = REAL(get_list_element(list, "c"));
+        k = REAL(get_list_element(list, "k"));
     }
         
     catch (exception & e) {
@@ -2175,7 +2222,7 @@ SEXP iq_huber_weight(SEXP list) {
     SEXP w = PROTECT(Rf_allocVector(REALSXP, *M));
     double* _w = REAL(w);
         
-    huber_weight(X, M, N, x, _w);
+    huber_weight(X, M, N, x, _w, *c, *k); // not a mistake, c and k are swapped
         
     for (int i = 0; i < *M; i++) {
         if (isnan(_w[i])) {

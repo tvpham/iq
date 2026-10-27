@@ -1,3 +1,20 @@
+#########################################################################
+#
+# Author: Thang V. Pham, t.pham@amsterdamumc.nl
+#
+# All rights reserved.
+#
+# Citations:
+#
+#Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
+#Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
+#quantification algorithms in mass spectrometry-based proteomics.
+#Journal of Proteome Research 2026 Feb 6; 25(2):1198–1203.
+#
+# Software version: 2.1.0
+#
+#########################################################################
+
 long_format_to_iq_format <- function(input_data, 
                                      output_data,
                                      sample_id = "Run",
@@ -173,6 +190,22 @@ rescale <- function(x, X, method) {
         }
     }
     return(x_new)
+}
+
+
+huber_weight <- function(X, x, c = 1.4826, k = 1.345) {
+    
+    if (nrow(X) == 1) {
+        return(1)
+    }
+    
+    .Call("iq_huber_weight",
+          list(X = as.double(X),
+               M = as.integer(nrow(X)),
+               N = as.integer(ncol(X)),
+               x = as.double(x),
+               c = as.double(c),
+               k = as.double(k)))
 }
 
 

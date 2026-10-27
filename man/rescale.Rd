@@ -21,8 +21,7 @@ components are rescaled to the median of input data, while all other components 
 mean, or sum of the input data.
 }
 \references{
-Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
-abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
 }
 \author{
 Thang V. Pham

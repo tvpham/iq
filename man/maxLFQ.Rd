@@ -18,6 +18,8 @@ A list of two components is returned
 \item{annotation}{An empty string if all quantified samples are connected. Otherwise, a string of membership of the connected components is returned.}
 }
 \references{
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
+
 Cox J, Hein MY, Luber CA, et al. Accurate proteome-wide label-free quantification
 by delayed normalization and maximal peptide ratio extraction, termed MaxLFQ.
 \emph{Mol Cell Proteomics}. 2014;13(9):2513–2526.

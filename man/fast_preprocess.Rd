@@ -29,8 +29,11 @@ fast_preprocess(quant_table,
 A list is returned with the same components as input data in which low intensities are filtered out and median normalization is performed if requested.
 }
 \references{
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
+
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
 abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
+
 }
 \author{
 Thang V. Pham
