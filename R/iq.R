@@ -1,14 +1,16 @@
 #########################################################################
 #
-# Author: Thang V. Pham, t.pham@amsterdamumc.nl
+# Author: Thang V. Pham {t.pham@amsterdamumc.nl}
 #
 # All rights reserved.
 #
 # Citation:
 #
-# Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics, Bioinformatics 2020 Apr 15;36(8):2611-2613.
+# Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative 
+# protein abundances from ion quantification in DIA-MS-based proteomics, 
+# Bioinformatics 2020 Apr 15;36(8):2611-2613.
 #
-# Software version: 1.9.9
+# Software version: 2.2.0
 #
 #########################################################################
 
@@ -25,12 +27,17 @@ preprocess <- function(quant_table,
                        intensity_col_sep = NULL,
                        intensity_col_id = NULL,
                        na_string = "0",
-                       show_boxplot = TRUE) {
+                       show_boxplot = TRUE,
+                       verbose = TRUE) {
+
+    .check_cutoff(log2_intensity_cutoff)
 
     quant_table <- as.data.frame(quant_table)
     
     if (!is.null(pdf_out)) {
         pdf(pdf_out, pdf_width, pdf_height)
+        pdf_device <- dev.cur()
+        on.exit(dev.off(pdf_device), add = TRUE)  # also on an error
     }
 
     if (is.null(intensity_col_sep)) {
@@ -39,7 +46,9 @@ preprocess <- function(quant_table,
         }
 
         # make secondary ids
-        message("Concatenating secondary ids...\n")
+        if (verbose) {
+            message("Concatenating secondary ids...")
+        }
         second_id <- as.character(quant_table[, secondary_id[1]])
         if (length(secondary_id) > 1) {
             for (i in 2:length(secondary_id)) {
@@ -47,13 +56,21 @@ preprocess <- function(quant_table,
             }
         }
 
+        # na_string: a value considered missing, as a number (as in fast_read_data_frame)
+        quant <- quant_table[, intensity_col]
+        if (!is.null(na_string)) {
+            quant[quant %in% suppressWarnings(as.numeric(na_string))] <- NA
+        }
+
         d <- data.frame(protein_list = as.character(quant_table[, primary_id]),
                         sample_list = as.character(quant_table[, sample_id]),
-                        quant = log2(quant_table[, intensity_col]),
+                        quant = log2(quant),
                         id = second_id)
     } else {
         # make secondary ids
-        message("Concatenating secondary ids...\n")
+        if (verbose) {
+            message("Concatenating secondary ids...")
+        }
         second_id <- as.character(quant_table[, secondary_id[1]])
         if (length(secondary_id) > 1) {
             for (i in 2:length(secondary_id)) {
@@ -93,13 +110,21 @@ preprocess <- function(quant_table,
         }
     }
 
-    d <- d[complete.cases(d),] # remove NaN quant
+    # samples with a value, before zero and negative intensities are removed (so that a sample
+    # left without values is reported, as in fast_preprocess); a missing value (NA) is not a value
+    has_value <- complete.cases(d[, c("protein_list", "sample_list", "id")]) &
+        (!is.na(d$quant) | is.nan(d$quant))
+    samples_read <- unique(d$sample_list[has_value])
 
-    samples <- unique(d$sample_list)
+    # remove incomplete rows and values that are not finite after log2 (-Inf for a zero
+    # intensity, NaN for a negative one); -Inf would otherwise stay without a cut-off
+    d <- d[complete.cases(d) & is.finite(d$quant),]
 
     # intensity cut off
     if (!is.null(log2_intensity_cutoff)) {
-        message("Removing low intensities...\n")
+        if (verbose) {
+            message("Removing low intensities...")
+        }
         if (!is.null(pdf_out)) {
             a <- hist(d$quant, 100, col = "steelblue", border = "steelblue", freq = FALSE,
                       main = "Histogram of log2 intensities",
@@ -109,13 +134,29 @@ preprocess <- function(quant_table,
         d <- d[d$quant > log2_intensity_cutoff,]
     }
 
+    # samples with values after the cut-off (a sample without values would have median NA,
+    # which would make every normalized value NA)
+    samples <- unique(d$sample_list)
+
+    if (length(samples) == 0) {
+        stop("No quantitative values left: all intensities are ",
+             if (is.null(log2_intensity_cutoff)) "zero or negative."
+             else "zero, negative or not above the intensity cut-off.")
+    }
+
+    if (length(samples) < length(samples_read)) {
+        warning("No values left after removing zero, negative and low intensities in sample(s) ",
+                .name_list(setdiff(samples_read, samples)),
+                "; these samples are left out of the normalization.")
+    }
+
     if (!is.null(pdf_out) && show_boxplot) {
         dl <- list()
     }
 
     m <- rep(NA, length(samples))
 
-    for (i in 1:length(samples)) {
+    for (i in seq_along(samples)) {
         v <- d$quant[d$sample_list == samples[i]]
         m[i] <- median(v, na.rm = TRUE)
 
@@ -125,7 +166,9 @@ preprocess <- function(quant_table,
     }
 
     if (!is.null(pdf_out) && show_boxplot) {
-        message("Barplotting raw data ...\n")
+        if (verbose) {
+            message("Barplotting raw data ...")
+        }
 
         boxplot(dl,
                 names = as.character(samples),
@@ -140,21 +183,25 @@ preprocess <- function(quant_table,
 
     if (median_normalization) {
 
-        message("Median normalization ...\n")
+        if (verbose) {
+            message("Median normalization ...")
+        }
 
         f <- mean(m) - m
 
         # normalization
-        for (i in 1:length(samples)) {
+        for (i in seq_along(samples)) {
             idx <- d$sample_list == samples[i]
             d$quant[idx] <- d$quant[idx] + f[i]
         }
 
         if (!is.null(pdf_out) && show_boxplot) {
-            message("Barplotting after normalization ...\n")
+            if (verbose) {
+                message("Barplotting after normalization ...")
+            }
 
             dl <- list()
-            for (i in 1:length(samples)) {
+            for (i in seq_along(samples)) {
                 dl[i] <- list(d$quant[d$sample_list == samples[i]])
             }
 
@@ -168,10 +215,6 @@ preprocess <- function(quant_table,
                     staplelty = 0,
                     las = 2)
         }
-    }
-
-    if (!is.null(pdf_out)) {
-        dev.off()
     }
 
     return(d)
@@ -226,7 +269,7 @@ create_protein_list <- function(preprocessed_data) {
                 if (is.na(m[char_r[j], char_c[j]])) {
                     m[char_r[j], char_c[j]] <- tmp[j, "quant"]
                 } else {
-                    message(j, " : sample ", char_c[j], "; id ", char_r[j], " not unique.\n")
+                    message(j, " : sample ", char_c[j], "; id ", char_r[j], " not unique.")
                     stop("duplicate entry.\n")
                 }
             }
@@ -386,12 +429,12 @@ topN <- function(X, N = 3, aggregation_in_log_space = TRUE) {
     if (aggregation_in_log_space) {
         v <- rowMeans(X, na.rm = TRUE)
         v_sorted <- sort(v, decreasing = TRUE, na.last = TRUE, index.return = TRUE)
-        out <- colMeans(X[v_sorted$ix[1:min(N, length(v))],], na.rm = TRUE)
+        out <- colMeans(X[v_sorted$ix[1:min(N, length(v))], , drop = FALSE], na.rm = TRUE)
     } else {
         XX <- 2^X
         v <- rowMeans(XX, na.rm = TRUE)
         v_sorted <- sort(v, decreasing = TRUE, na.last = TRUE, index.return = TRUE)
-        out <- log2(colMeans(XX[v_sorted$ix[1:min(N, length(v))],], na.rm = TRUE))
+        out <- log2(colMeans(XX[v_sorted$ix[1:min(N, length(v))], , drop = FALSE], na.rm = TRUE))
     }
 
     out[is.nan(out)] <- NA
@@ -422,7 +465,7 @@ create_protein_table <- function(protein_list, method = "maxLFQ", ...) {
     }
 
     if (length(protein_list) == 0) {
-        return(NA)
+        return(list(estimate = matrix(NA_real_, nrow = 0, ncol = 0), annotation = character(0)))
     }
 
     tab <- matrix(NA,
@@ -528,10 +571,16 @@ process_wide_format <- function(input_filename,
                       direction = "long",
                       varying = quant_columns,
                       timevar = "sample_list",
-                      times = colnames(d)[quant_columns],
+                      times = if (is.numeric(quant_columns)) colnames(d)[quant_columns] else quant_columns,
                       v.names = "quant")
 
     d_long <- d_long[!is.na(d_long$quant) & !is.na(d_long[, id_column]),]
+
+    # zero and negative intensities are missing (not finite in log2 space), unless the data
+    # are already log2 values
+    if (!data_in_log_space) {
+        d_long <- d_long[d_long$quant > 0, ]
+    }
 
     unique_values <- unique(d_long[, id_column])
 
@@ -546,7 +595,7 @@ process_wide_format <- function(input_filename,
 
         res <- fast_MaxLFQ(df)
 
-        res$estimate <- res$estimate[unique_values, ]
+        res$estimate <- res$estimate[as.character(unique_values), , drop = FALSE]
 
     } else {
 
@@ -573,6 +622,7 @@ process_wide_format <- function(input_filename,
             a <- d[d[, id_column] == unique_values[r], quant_columns]
 
             if (!data_in_log_space) {
+                a[a <= 0] <- NA  # zero and negative intensities are missing
                 a <- log2(a)
             }
 
@@ -597,7 +647,9 @@ process_wide_format <- function(input_filename,
                 out <- meanInt(a)
             }
             else if (method == "sum") {
-                out <- list(estimate = log2(colSums(2^a, na.rm = TRUE)))
+                total <- colSums(2^a, na.rm = TRUE)
+                total[colSums(!is.na(a)) == 0] <- NA  # a sample without values
+                out <- list(estimate = log2(total))
             }
             else if (method == "least_na") {
                 out <- list(estimate = a[which.min(rowSums(is.na(a))),])

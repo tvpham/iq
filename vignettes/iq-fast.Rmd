@@ -1,11 +1,11 @@
 ---
 title: "Fast MaxLFQ"
 author: "Thang V Pham"
-date: "2024-12-03" 
+date: "2026-11-06" 
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Fast MaxLFQ}
-  %VignetteEncoding{UTF-8}
+  %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 editor_options: 
   chunk_output_type: console
@@ -15,9 +15,9 @@ editor_options:
 
 
 
-We have implemented a highly optimized version of the **iq** pipeline (Pham et al., Bioinformatics 2020). To run the following examples, download [DIA-report-long-format.zip](https://github.com/tvpham/iq/releases/download/v1.1/DIA-report-long-format.zip) and unzip the file to a local working directory.
+We have implemented a highly optimized version of the **iq** pipeline (Pham et al. 2020, Pham et al. 2026). To run the following examples, download [DIA-report-long-format.zip](https://github.com/tvpham/iq/releases/download/v1.1/DIA-report-long-format.zip) and unzip the file to a local working directory.
 
-The unzipped file `DIA-report-long-format.txt` is a tab-deliminated text file exported from a Spectronaut search using this export schema [iq.rs](https://github.com/tvpham/iq/releases/download/v1.1/iq.rs). The user might want to import this schema to their Spectronaut installation for the ease of using the **iq** pipeline.
+The unzipped file `DIA-report-long-format.txt` is a tab-delimited text file exported from a Spectronaut search using this export schema [iq.rs](https://github.com/tvpham/iq/releases/download/v1.1/iq.rs). The user might want to import this schema to their Spectronaut installation for the ease of using the **iq** pipeline.
 
 
 ## The standard pipeline
@@ -28,7 +28,7 @@ First, we apply the standard pipeline implemented in pure R. Read and filter the
 ``` r
 library("iq") # if not already installed, run install.packages("iq") 
 
-raw <- read.delim("DIA-Report-long-format.txt")
+raw <- read.delim("DIA-report-long-format.txt")
 
 selected <- raw$F.ExcludedFromQuantification == "False" & 
             !is.na(raw$PG.Qvalue) & (raw$PG.Qvalue < 0.01) &
@@ -119,11 +119,11 @@ write.table(cbind(Protein = rownames(result$estimate),
             "iq-MaxLFQ.txt", sep = "\t", row.names = FALSE)
 ```
 
-The resulting file `iq-MaxLFQ.txt` is the protein level quantification report in a tab-deliminated text format.
+The resulting file `iq-MaxLFQ.txt` is the protein level quantification report in a tab-delimited text format.
 
 ## A faster MaxLFQ implementation
 
-The function `iq::fast_MaxLFQ` implemented in C++ combines the functionalities of `iq::create_protein_list` and `iq::create_protein_table`.
+The function `iq::fast_MaxLFQ` implemented in C++ combines the functionalities of `iq::create_protein_list` and `iq::create_protein_table`. The two differ only for an ion with more than one value in a sample: `iq::fast_MaxLFQ` uses the log2 of the summed intensities, as `iq::process` does, whereas `iq::create_protein_list` stops with an error.
 
 
 ``` r
@@ -134,34 +134,34 @@ The function `iq::fast_MaxLFQ` implemented in C++ combines the functionalities o
 
 result_faster <- iq::fast_MaxLFQ(norm_data)
 #> nrow = 3369557, # proteins = 3554, # samples = 24
-#> Using 35 threads...
+#> Using 15 threads...
 #> 0%
-#> 6%
-#> 13%
+#> 5%
+#> 12%
 #> 18%
-#> 24%
+#> 23%
 #> 29%
-#> 36%
-#> 42%
-#> 47%
-#> 52%
-#> 57%
-#> 64%
-#> 70%
-#> 77%
-#> 82%
-#> 87%
-#> 92%
-#> 98%
+#> 34%
+#> 40%
+#> 46%
+#> 51%
+#> 56%
+#> 61%
+#> 67%
+#> 72%
+#> 78%
+#> 83%
+#> 88%
+#> 93%
 #> Completed.
 ```
 
-The results of the R implementation `result` and C++ implementation `result_faster` should be equal up to the floating-point precision of the underlying numerical libraries.
+The results of the R implementation `result` and C++ implementation `result_faster` should be equal up to a convergence tolerance of the underlying numerical libraries.
 
 
 ``` r
 cat("Max difference =", max(abs(result_faster$estimate - result$estimate), na.rm = TRUE), "\n")
-#> Max difference = 1.332268e-13
+#> Max difference = 1.187839e-07
 
 cat("Identical NAs =", identical(is.na(result_faster$estimate), is.na(result$estimate)), "\n")
 #> Identical NAs = TRUE
@@ -224,32 +224,35 @@ system.time({
 #> 100%
 #> Completed.
 #>    user  system elapsed 
-#>  395.82    9.00  404.87
+#>  188.67    4.98  194.34
 
 system.time({
     result_faster <- iq::fast_MaxLFQ(norm_data)
 })
 #> nrow = 3369557, # proteins = 3554, # samples = 24
-#> Using 35 threads...
+#> Using 15 threads...
 #> 0%
-#> 7%
-#> 15%
-#> 24%
-#> 30%
-#> 36%
-#> 42%
-#> 47%
-#> 54%
-#> 59%
+#> 6%
+#> 12%
+#> 17%
+#> 23%
+#> 28%
+#> 33%
+#> 39%
+#> 44%
+#> 49%
+#> 55%
+#> 60%
 #> 65%
-#> 72%
+#> 71%
 #> 77%
-#> 83%
-#> 90%
-#> 96%
+#> 82%
+#> 87%
+#> 92%
+#> 97%
 #> Completed.
 #>    user  system elapsed 
-#>    7.75    0.04    3.55
+#>    2.76    0.07    1.75
 ```
 
 ## An efficient data structure and data loading
@@ -278,7 +281,7 @@ iq_dat <- iq::fast_read("DIA-report-long-format.txt",
 #>     PG.ProteinGroups
 #> Ion column(s):
 #>     EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType
-#> Quant column:
+#> Quant column(s):
 #>     F.PeakArea
 #> Annotation column(s):
 #>     PG.Genes PG.ProteinNames
@@ -307,22 +310,26 @@ result_fastest <- iq::fast_MaxLFQ(iq_norm_data,
                                   row_names = iq_dat$protein[, 1], 
                                   col_names = iq_dat$sample)
 #> nrow = 3369557, # proteins = 3554, # samples = 24
-#> Using 35 threads...
+#> Using 15 threads...
 #> 0%
 #> 5%
-#> 11%
-#> 16%
-#> 22%
-#> 27%
-#> 33%
-#> 40%
+#> 10%
+#> 15%
+#> 21%
+#> 26%
+#> 31%
+#> 36%
+#> 41%
 #> 46%
-#> 53%
-#> 58%
+#> 52%
+#> 57%
 #> 63%
-#> 69%
-#> 87%
-#> 93%
+#> 68%
+#> 73%
+#> 79%
+#> 84%
+#> 89%
+#> 94%
 #> 99%
 #> Completed.
 ```
@@ -332,7 +339,7 @@ The result of the optimized pipeline `result_fastest` should be the same as that
 
 ``` r
 cat("Max difference =", max(abs(result_fastest$estimate - result$estimate), na.rm = TRUE), "\n")
-#> Max difference = 1.136868e-13
+#> Max difference = 1.187839e-07
 
 cat("Identical NAs =", identical(is.na(result_fastest$estimate), is.na(result$estimate)), "\n")
 #> Identical NAs = TRUE
@@ -438,7 +445,7 @@ system.time({
 #> 100%
 #> Completed.
 #>    user  system elapsed 
-#>  569.83   14.78  584.75
+#>  271.59    8.68  280.66
 
 system.time({
     iq_dat <- iq::fast_read("DIA-report-long-format.txt",
@@ -462,7 +469,7 @@ system.time({
 #>     PG.ProteinGroups
 #> Ion column(s):
 #>     EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType
-#> Quant column:
+#> Quant column(s):
 #>     F.PeakArea
 #> Annotation column(s):
 #>     PG.Genes PG.ProteinNames
@@ -485,31 +492,34 @@ system.time({
 #> Median normalization ...
 #> Barplotting after normalization ...
 #> nrow = 3369557, # proteins = 3554, # samples = 24
-#> Using 35 threads...
+#> Using 15 threads...
 #> 0%
 #> 5%
-#> 13%
-#> 18%
-#> 24%
-#> 29%
-#> 34%
-#> 40%
-#> 45%
-#> 50%
-#> 55%
-#> 61%
-#> 68%
-#> 75%
-#> 80%
-#> 86%
-#> 92%
-#> 98%
+#> 10%
+#> 15%
+#> 20%
+#> 25%
+#> 30%
+#> 35%
+#> 41%
+#> 46%
+#> 52%
+#> 57%
+#> 62%
+#> 67%
+#> 72%
+#> 78%
+#> 83%
+#> 88%
+#> 93%
+#> 99%
 #> Completed.
 #>    user  system elapsed 
-#>   27.54    1.56   12.34
+#>  127.86    0.89   34.61
 ```
 
 
 ## References
 
-1. Pham TV, Henneman AA, Jimenez CR (2020) iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics. _Bioinformatics_ 36(8):2611-2613.
+1. Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _Journal of Proteome Research_. 2026 Feb 6;25(2):1198-1203.
+1. Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics. _Bioinformatics_. 2020 Apr 15;36(8):2611-2613.

@@ -1,6 +1,30 @@
-exportPattern("^[[:alpha:]]+")
-importFrom("grDevices", "dev.off", "pdf")
-importFrom("graphics", "arrows", "axis", "boxplot", "hist", "legend","matplot", "par")
+export(connected_component,
+       create_protein_list,
+       create_protein_table,
+       extract_annotation,
+       fast_MaxLFQ,
+       fast_preprocess,
+       fast_read,
+       fast_read_data_frame,
+       fast_read_parquet,
+       huber_weight,
+       iq_format_to_protein_list,
+       long_format_to_iq_format,
+       maxLFQ,
+       meanInt,
+       median_polish,
+       plot_protein,
+       preprocess,
+       process,
+       process_iq_format,
+       process_long_format,
+       process_matrix,
+       process_wide_format,
+       read_fasta_file,
+       rescale,
+       topN)
+importFrom("grDevices", "boxplot.stats", "dev.cur", "dev.off", "pdf")
+importFrom("graphics", "arrows", "axis", "boxplot", "bxp", "hist", "legend","matplot", "par")
 importFrom("stats", "lsfit", "median", "medpolish", "complete.cases", "reshape")
-importFrom("utils", "read.delim", "write.table")
+importFrom("utils", "read.delim", "write.table", "head")
 useDynLib(iq, .registration = TRUE)

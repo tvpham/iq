@@ -11,7 +11,7 @@ huber_weight(X, x, c = 1.4826, k = 1.345)
 
 }
 \arguments{
-  \item{X}{A matrix of intensities in the log2 space. Columns are samples and rows are fragment ions.}
+  \item{X}{A matrix, or a data frame with numeric columns, of intensities in the log2 space. Columns are samples and rows are fragment ions.}
   \item{x}{An initial estimate}
   \item{c}{Weighting function parameter.}
   \item{k}{Weighting function parameter.}
@@ -20,7 +20,7 @@ huber_weight(X, x, c = 1.4826, k = 1.345)
 A numeric weight vector of size equal to the number of rows of X.
 }
 \references{
-Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198-1203.
 }
 \author{
 Thang V. Pham

@@ -7,12 +7,16 @@ The MaxLFQ algorithm
 A fast implementation of the MaxLFQ algorithm.
 }
 \usage{
-fast_MaxLFQ(norm_data, row_names = NULL, col_names = NULL)
+fast_MaxLFQ(norm_data, row_names = NULL, col_names = NULL, verbose = TRUE)
 }
 \arguments{
   \item{norm_data}{A list of four vectors with equal length \code{protein_list}, \code{sample_list}, \code{id} and \code{quant} as prepared by the \code{fast_preprocess} function or the \code{quant_table} component returned by the \code{fast_read} function. Note that \code{quant} should contain log2 intensities.}
-  \item{row_names}{A vector of character strings for row names. If \code{NULL}, unique values in the \code{protein_list} component of \code{norm_data} will be used. Otherwise, it should be the first column of the \code{protein} component returned by the \code{fast_read}.}
-  \item{col_names}{A vector of character strings for column names. If \code{NULL}, unique values in the \code{sample_list} component of \code{norm_data} will be used. Otherwise, it should be the \code{sample} component returned by the \code{fast_read}.}
+  \item{row_names}{A vector of character strings for row names. If \code{NULL}, unique values in the \code{protein_list} component of \code{norm_data} will be used. Otherwise, it should be the first column of the \code{protein} component returned by the \code{fast_read}, and \code{protein_list} must contain indices from 1 to its length.}
+  \item{col_names}{A vector of character strings for column names. If \code{NULL}, unique values in the \code{sample_list} component of \code{norm_data} will be used. Otherwise, it should be the \code{sample} component returned by the \code{fast_read}, and \code{sample_list} must contain indices from 1 to its length.}
+  \item{verbose}{A logical value. The default \code{TRUE} prints progress and summary messages; \code{FALSE} prints none of them. Warnings and errors are always shown.}
+}
+\details{
+The MaxLFQ problem of each protein is solved with the \code{"maxlfq_bit"} method of \code{\link{process_matrix}}.
 }
 \value{
 A list is returned with two components
@@ -20,11 +24,10 @@ A list is returned with two components
 \item{annotation}{A vector of strings indicating membership in case of multiple connected components for each row of \code{estimate}.}
 }
 \references{
-Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198-1203.
 
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
 abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.
-
 }
 \author{
 Thang V. Pham

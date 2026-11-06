@@ -1,2 +1,8 @@
-PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS) -DEIGEN_DONT_PARALLELIZE -Wno-ignored-attributes
-PKG_LIBS=$(SHLIB_OPENMP_CXXFLAGS)
+## The original MaxLFQ implementation (Eigen) for "maxlfq", "weighted_maxlfq" and fast_MaxLFQ(),
+## for development and testing: uncomment the PKG_CXXFLAGS line below and comment out the
+## default one. Needs the RcppEigen package for the Eigen headers. iq2:::.maxlfq_eigen()
+## returns TRUE for this build.
+## PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS) -DIQ_USE_EIGEN -DEIGEN_DONT_PARALLELIZE -Wno-ignored-attributes -I`"$(R_HOME)/bin/Rscript" -e "cat(system.file('include', package = 'RcppEigen'))"`
+
+PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
+PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS)

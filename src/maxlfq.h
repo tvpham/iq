@@ -1,6 +1,6 @@
 /*#########################################################################
  
- Author: Thang V. Pham, t.pham@amsterdamumc.nl
+ Author: Thang V. Pham {t.pham@amsterdamumc.nl}
  
  All rights reserved.
  
@@ -10,14 +10,15 @@
  protein abundances from ion quantification in DIA-MS-based proteomics,
  Bioinformatics 2020 Apr 15;36(8):2611-2613.
  
- Software version: 2.0
+ Software version: 2.2.0
  
 #########################################################################*/
 
 #ifndef __MAXLFQ_H
 #define __MAXLFQ_H
 
-#include <RcppEigen.h>
+// only with IQ_USE_EIGEN (src/Makevars): the original MaxLFQ, solved with Eigen
+#include <Eigen/Dense>
 
 #include <unordered_map>
 #include <vector>

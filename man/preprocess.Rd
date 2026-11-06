@@ -20,7 +20,8 @@ preprocess(quant_table,
            intensity_col_sep = NULL,
            intensity_col_id = NULL,
            na_string = "0",
-           show_boxplot = TRUE)
+           show_boxplot = TRUE,
+           verbose = TRUE)
 }
 \arguments{
   \item{quant_table}{
@@ -31,14 +32,15 @@ A long-format table with a primary column of protein identification, secondary c
 \item{sample_id}{Unique values in this column form the list of samples.}
 \item{intensity_col}{The column for intensities.}
 \item{median_normalization}{A logical value. The default \code{TRUE} value is to perform median normalization.}
-\item{log2_intensity_cutoff}{Entries lower than this value in log2 space are ignored. Plot a histogram of all intensities to set this parameter.}
+\item{log2_intensity_cutoff}{Entries not above this value in log2 space are ignored; \code{NULL} for no cutoff. Plot a histogram of all intensities to set this parameter. Zero and negative intensities (not finite in log2 space) are always removed.}
 \item{pdf_out}{A character string specifying the name of the PDF output. A \code{NULL} value will suppress the PDF output.}
 \item{pdf_width}{Width of the pdf output in inches.}
 \item{pdf_height}{Height of the pdf output in inches.}
 \item{intensity_col_sep}{A separator character when entries in the intensity column contain multiple values.}
 \item{intensity_col_id}{The column for identities of multiple quantitative values.}
-\item{na_string}{The value considered as NA.}
+\item{na_string}{The value considered as NA. For a numeric intensity column, a number (default 0).}
 \item{show_boxplot}{A logical value. The default \code{TRUE} value is to create boxplots of fragment intensities for each sample.}
+\item{verbose}{A logical value. The default \code{TRUE} prints progress messages; \code{FALSE} prints none of them. Warnings and errors are always shown.}
 }
 \details{
 When entries in the intensity column contain multiple values, this function will replicate entries in other column and the \code{secondary_id} will be appended with corresponding entries in \code{intensity_col_id} when it is provided. Otherwise, integer values 1, 2, 3, etc... will be used.
@@ -59,7 +61,7 @@ norm_data <- iq::preprocess(spikeins, median_normalization = FALSE, pdf_out = NU
 }
 }
 \references{
-Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198–1203.
+Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. \emph{Journal of Proteome Research} 2026 Feb 6; 25(2):1198-1203.
 
 Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein
 abundances from ion quantification in DIA-MS-based proteomics. \emph{Bioinformatics} 2020 Apr 15;36(8):2611-2613.

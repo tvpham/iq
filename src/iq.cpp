@@ -1,21 +1,21 @@
 /*#########################################################################
 
-Author: Thang V. Pham, t.pham@amsterdamumc.nl
+ Author: Thang V. Pham {t.pham@amsterdamumc.nl}
 
-All rights reserved.
+ All rights reserved.
 
-Citations:
+ Citations:
 
-Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
-Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
-quantification algorithms in mass spectrometry-based proteomics.
-Journal of Proteome Research 2026 Feb 6; 25(2):1198–1203.
+ Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
+ Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
+ quantification algorithms in mass spectrometry-based proteomics.
+ Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
  
-Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
-protein abundances from ion quantification in DIA-MS-based proteomics,
-Bioinformatics 2020 Apr 15;36(8):2611-2613.
+ Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative
+ protein abundances from ion quantification in DIA-MS-based proteomics,
+ Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
-Software version: 2.1
+ Software version: 2.2.0
 
 #########################################################################*/
 
@@ -31,9 +31,14 @@ Software version: 2.1
 #include <string>
 #include <utility>
 #include <exception>
+#include <functional>
 #include <stdexcept>
 
-#include <RcppEigen.h>
+// The original MaxLFQ (Eigen) is compiled only with IQ_USE_EIGEN, see src/Makevars. Without it,
+// "maxlfq", "weighted_maxlfq" and fast_MaxLFQ() use the solver of "maxlfq_bit".
+#ifdef IQ_USE_EIGEN
+#include <Eigen/Dense>
+#endif
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -46,13 +51,32 @@ Software version: 2.1
 #include <Rinternals.h>
 
 #include "utils.h"
+#ifdef IQ_USE_EIGEN
 #include "maxlfq.h"
+#endif
 #include "maxlfq_bit.h"
 #include "coordinate_descent.h"
+#include "iq_writer.h"
 
 extern "C" SEXP iq_filter(SEXP);
+extern "C" SEXP iq_filter_write(SEXP, SEXP);
 extern "C" SEXP iq_MaxLFQ(SEXP);
 extern "C" SEXP iq_quant(SEXP);
+extern "C" SEXP iq_process(SEXP);
+extern "C" SEXP iq_rescale(SEXP);
+extern "C" SEXP iq_eigen(void);
+
+// streaming reader, src/stream.cpp
+extern "C" SEXP iq_stream_begin(SEXP);
+extern "C" SEXP iq_stream_add(SEXP, SEXP);
+extern "C" SEXP iq_stream_end(SEXP, SEXP);
+extern "C" SEXP iq_stream_write(SEXP, SEXP);
+
+// iq format writer, src/writer.cpp
+extern "C" SEXP iq_writer_begin(SEXP);
+extern "C" SEXP iq_writer_end(SEXP);
+extern "C" SEXP iq_read_sample_values(SEXP, SEXP, SEXP, SEXP);
+extern "C" SEXP iq_read_protein_batch(SEXP, SEXP, SEXP, SEXP, SEXP);
 
 using namespace std;
 
@@ -367,7 +391,10 @@ void process(const vector<string> &argv,
              vector<vector<string>*> *annotation,
              vector<string> *annotation_colnames,
              vector<string*> *samples,
-             vector<vector<string>*> *ions) {
+             vector<vector<string>*> *ions,
+             const std::function<void()> &on_chunk = std::function<void()>()) {
+    // on_chunk: if set, called after each chunk of lines, with the values of that chunk in
+    // protein_index, sample_index, ion_index and quant (iq format writer)
     //--- example input parameters
     /*
     const char* col_sample = "R.Condition";
@@ -386,7 +413,7 @@ void process(const vector<string> &argv,
     const char *col_sample = "";
     const char *col_primary_id = "";
     vector<const char *> col_secondary_ids;
-    const char *col_quant = "";
+    vector<const char *> col_quants;      // one column (split by intensity_col_sep), or one per fragment
     vector<const char *> col_annotations;
 
     vector<pair<const char *, const char *>> filter_string_equal;
@@ -396,7 +423,7 @@ void process(const vector<string> &argv,
     vector<pair<const char*, double>> filter_double_greater;
 
     const char* intensity_col_sep = 0;
-    const char* intensity_col_id = 0;
+    vector<const char *> col_quant_ids;   // as col_quants: one column (split), or one per intensity column
     const char* na_string = 0;
 
     if (argv.size() < 1) {
@@ -430,6 +457,7 @@ void process(const vector<string> &argv,
     }
 
     bool show_header = false;
+    bool verbose = true;   // --quiet: no command, columns, thread count or counts
     string output_dir = "";
 
     size_t p = 0;  // parameter
@@ -439,6 +467,9 @@ void process(const vector<string> &argv,
             p++;
         } else if (argv[p].compare("--header") == 0) {
             show_header = true;
+            p++;
+        } else if (argv[p].compare("--quiet") == 0) {
+            verbose = false;
             p++;
         } else if (argv[p].compare("--sample") == 0) {
             col_sample = argv[++p].c_str();
@@ -456,8 +487,14 @@ void process(const vector<string> &argv,
             col_primary_id = argv[++p].c_str();
             p++;
         } else if (argv[p].compare("--quant") == 0) {
-            col_quant = argv[++p].c_str();
+            col_quants.clear();
             p++;
+            while (p < (argv.size() - 1)) {
+                if (strncmp(argv[p].c_str(), "--", 2) == 0) {
+                    break;
+                }
+                col_quants.push_back(argv[p++].c_str());
+            }
         } else if (argv[p].compare("--secondary") == 0) {
             col_secondary_ids.clear();
             p++;
@@ -519,8 +556,14 @@ void process(const vector<string> &argv,
             intensity_col_sep = argv[++p].c_str();
             p++;
         } else if (argv[p].compare("--intensity_col_id") == 0) {
-            intensity_col_id = argv[++p].c_str();
+            col_quant_ids.clear();
             p++;
+            while (p < (argv.size() - 1)) {
+                if (strncmp(argv[p].c_str(), "--", 2) == 0) {
+                    break;
+                }
+                col_quant_ids.push_back(argv[p++].c_str());
+            }
         } else if (argv[p].compare("--na_string") == 0) {
             na_string = argv[++p].c_str();
             p++;
@@ -528,6 +571,23 @@ void process(const vector<string> &argv,
             throw runtime_error((string("Do not know what to do with ") + argv[p]).c_str());
         }
     }
+
+    if (col_quants.empty()) {
+        throw runtime_error("No intensity column");
+    }
+    if (col_secondary_ids.empty()) {  // the ions are made from these columns (col_secondary_ids_ind[0] below)
+        throw runtime_error("No secondary_id column");
+    }
+    if (col_quants.size() > 1 && intensity_col_sep) {
+        throw runtime_error("intensity_col_sep can only be used with a single intensity column");
+    }
+    if (!col_quant_ids.empty() && col_quant_ids.size() != col_quants.size()) {
+        throw runtime_error("intensity_col_id must have the same length as intensity_col");
+    }
+    if (col_quants.size() == 1 && !col_quant_ids.empty() && !intensity_col_sep) {
+        throw runtime_error("intensity_col_id with a single intensity column needs intensity_col_sep");
+    }
+    const bool has_quant_ids = !col_quant_ids.empty();
 
     //--- headers
 
@@ -563,6 +623,36 @@ void process(const vector<string> &argv,
         throw runtime_error((string("Cannot parse header of ") + filename).c_str());
     }
 
+    // files the reader cannot read: say why, instead of "Cannot find column in the header"
+    {
+        string problem;
+        const unsigned char *b = (const unsigned char *)line;
+        if (b[0] == 0x1f && b[1] == 0x8b) {
+            problem = " is gzip-compressed; decompress it first, or read it into R and pass the data frame";
+        } else {
+            for (size_t i = 0; i < n_tab_pos; i++) {
+                if (line[tab_pos[i]] == '"') {
+                    problem = " has quoted fields (e.g. written by write.table with quote = TRUE); write it with "
+                              "quote = FALSE, or read it into R and pass the data frame";
+                    break;
+                }
+            }
+        }
+        if (!problem.empty()) {
+            fclose(fp);
+            free(line);
+            if (tab_pos) {
+                free(tab_pos);
+            }
+            throw runtime_error(string(filename) + problem);
+        }
+    }
+
+    // a UTF-8 byte-order mark before the first column name (e.g. "CSV UTF-8" from Excel)
+    if (n_tab_pos > 0 && strncmp(line + tab_pos[0], "\xEF\xBB\xBF", 3) == 0) {
+        tab_pos[0] += 3;
+    }
+
     if (show_header) {
         for (size_t i = 0; i < n_tab_pos; i++) {
             Rprintf("%s\n", line + tab_pos[i]);
@@ -580,63 +670,74 @@ void process(const vector<string> &argv,
     }
 
     // display command
-    Rprintf("\nCommand: ");
-    for (size_t i = 0; i < argv.size(); i++) {
-        Rprintf("%s ", argv[i].c_str());
-    }
-    Rprintf("\n\nSample column:\n    %s\n", col_sample);
-    Rprintf("Protein column:\n    %s\n", col_primary_id);
-    Rprintf("Ion column(s):\n   ");
-    for (auto str : col_secondary_ids) {
-        Rprintf(" %s", str);
-    }
-    Rprintf("\nQuant column:\n    %s\n", col_quant);
-    if (!col_annotations.empty()) {
-        Rprintf("Annotation column(s):\n   ");
-        for (auto str : col_annotations) {
+    if (verbose) {
+        Rprintf("\nCommand: ");
+        for (size_t i = 0; i < argv.size(); i++) {
+            Rprintf("%s ", argv[i].c_str());
+        }
+        Rprintf("\n\nSample column:\n    %s\n", col_sample);
+        Rprintf("Protein column:\n    %s\n", col_primary_id);
+        Rprintf("Ion column(s):\n   ");
+        for (auto str : col_secondary_ids) {
+            Rprintf(" %s", str);
+        }
+        Rprintf("\nQuant column(s):\n   ");
+        for (auto str : col_quants) {
             Rprintf(" %s", str);
         }
         Rprintf("\n");
-    }
-
-    if (!filter_string_equal.empty()) {
-        Rprintf("String equal filter(s):\n");
-        for (auto str : filter_string_equal) {
-            Rprintf("    %s == %s\n", str.first, str.second);
+        if (!col_annotations.empty()) {
+            Rprintf("Annotation column(s):\n   ");
+            for (auto str : col_annotations) {
+                Rprintf(" %s", str);
+            }
+            Rprintf("\n");
         }
-    }
 
-    if (!filter_string_not_equal.empty()) {
-        Rprintf("String not equal filter(s):\n");
-        for (auto str : filter_string_not_equal) {
-            Rprintf("    %s != %s\n", str.first, str.second);
+        if (!filter_string_equal.empty()) {
+            Rprintf("String equal filter(s):\n");
+            for (auto str : filter_string_equal) {
+                Rprintf("    %s == %s\n", str.first, str.second);
+            }
         }
-    }
 
-    if (!filter_double_less.empty()) {
-        Rprintf("Double less filter(s):\n");
-        for (auto str : filter_double_less) {
-            Rprintf("    %s < %f\n", str.first, str.second);
+        if (!filter_string_not_equal.empty()) {
+            Rprintf("String not equal filter(s):\n");
+            for (auto str : filter_string_not_equal) {
+                Rprintf("    %s != %s\n", str.first, str.second);
+            }
         }
-    }
 
-    if (!filter_double_greater.empty()) {
-        Rprintf("Double greater filter(s):\n");
-        for (auto str : filter_double_greater) {
-            Rprintf("    %s > %f\n", str.first, str.second);
+        if (!filter_double_less.empty()) {
+            Rprintf("Double less filter(s):\n");
+            for (auto str : filter_double_less) {
+                Rprintf("    %s < %f\n", str.first, str.second);
+            }
         }
-    }
 
-    if (intensity_col_sep) {
-        Rprintf("Quant column separator:\n    %s\n", intensity_col_sep);
-    }
+        if (!filter_double_greater.empty()) {
+            Rprintf("Double greater filter(s):\n");
+            for (auto str : filter_double_greater) {
+                Rprintf("    %s > %f\n", str.first, str.second);
+            }
+        }
 
-    if (na_string) {
-        Rprintf("Quant column NA string (in addition to NaN):\n    %s\n", na_string);
-    }
+        if (intensity_col_sep) {
+            Rprintf("Quant column separator:\n    %s\n", intensity_col_sep);
+        }
 
-    if (intensity_col_id) {
-        Rprintf("Quant id column:\n    %s\n", intensity_col_id);
+        if (na_string) {
+            Rprintf("Quant column NA string (in addition to NaN):\n    %s\n", na_string);
+        }
+
+        if (has_quant_ids) {
+            Rprintf("Quant id column(s):\n   ");
+            for (auto str : col_quant_ids) {
+                Rprintf(" %s", str);
+            }
+            Rprintf("\n");
+        }
+
     }
 
     //--- check header
@@ -663,8 +764,8 @@ void process(const vector<string> &argv,
     vector<size_t> col_secondary_ids_ind(col_secondary_ids.size());
     map_header(col_secondary_ids.data(), col_secondary_ids.size(), col_secondary_ids_ind.data());
 
-    size_t col_quant_ind;
-    map_header(&col_quant, 1, &col_quant_ind);
+    vector<size_t> col_quants_ind(col_quants.size());
+    map_header(col_quants.data(), col_quants.size(), col_quants_ind.data());
 
     vector<size_t> col_annotations_ind(col_annotations.size());
     map_header(col_annotations.data(), col_annotations.size(), col_annotations_ind.data());
@@ -694,10 +795,8 @@ void process(const vector<string> &argv,
         annotation_colnames->push_back(string(n));
     }
 
-    size_t intensity_col_id_ind;
-    if (intensity_col_id) {
-        map_header(&intensity_col_id, 1, &intensity_col_id_ind);
-    }
+    vector<size_t> col_quant_ids_ind(col_quant_ids.size());
+    map_header(col_quant_ids.data(), col_quant_ids.size(), col_quant_ids_ind.data());
 
 
     if (line) {
@@ -727,6 +826,7 @@ void process(const vector<string> &argv,
     auto quant_id_vec = new vector< vector<char *> >; // vector of quant values
     auto quant_vec_is_na = new vector< vector<bool> >; // vector of NA values
     auto quant_vec_is_na_n = new vector< int >; // vector of NA values
+    auto row_valid = new vector< char >; // 1: the line has all columns (not blank); char, not bool: set in parallel
 
     vector<string*> numbers;
 
@@ -765,7 +865,9 @@ void process(const vector<string> &argv,
 
         for (size_t n = 0; n < _line->size(); n++) {
 
-            if ((*quant_vec_is_na_n)[n] == 0) {
+            // every sample in the input is registered, also one whose lines are all filtered
+            // out or missing (it is then a column of NA in the result); not a blank line
+            if (!(*row_valid)[n]) {
                 continue;
             }
 
@@ -782,6 +884,10 @@ void process(const vector<string> &argv,
                 samples->emplace_back(new string((*_tab)[n][col_sample_ind]));
 
                 map_samples->emplace((*samples)[s]->c_str(), s);
+            }
+
+            if ((*quant_vec_is_na_n)[n] == 0) {
+                continue;
             }
 
             for (int i = 0; i < (*quant_vec_is_na_n)[n]; i++) {
@@ -810,7 +916,7 @@ void process(const vector<string> &argv,
                         iv.str_vec.push_back((*_tab)[n][col_secondary_ids_ind[j]]);
                     }
 
-                    if (intensity_col_id) {
+                    if (has_quant_ids) {
                         iv.str_vec.push_back(((*quant_id_vec)[n])[k]);
                     }
                     else {
@@ -831,7 +937,7 @@ void process(const vector<string> &argv,
                         for (size_t j = 0; j < n_ion_ind; j++) {
                             (*ions)[i]->emplace_back((*_tab)[n][col_secondary_ids_ind[j]]);
                         }
-                        if (intensity_col_id) {
+                        if (has_quant_ids) {
                             (*ions)[i]->emplace_back(((*quant_id_vec)[n])[k]);
                         }
                         else {
@@ -856,9 +962,13 @@ void process(const vector<string> &argv,
         omp_set_dynamic(0);
         int no_threads = 4;
         omp_set_num_threads(no_threads);
-        Rprintf("\nUsing %d threads ...\n", no_threads);
+        if (verbose) {
+            Rprintf("\nUsing %d threads ...\n", no_threads);
+        }
     #else
-        Rprintf("Using a single CPU core ...\n");
+        if (verbose) {
+            Rprintf("Using a single CPU core ...\n");
+        }
     #endif
 
     auto double_buffers = new double_buffering_file_t(fp);
@@ -885,6 +995,7 @@ void process(const vector<string> &argv,
         delete quant_id_vec;
         delete quant_vec_is_na;
         delete quant_vec_is_na_n;
+        delete row_valid;
     };
 
     if (double_buffers->buf_0 == NULL || double_buffers->buf_1 == NULL) {
@@ -920,6 +1031,10 @@ void process(const vector<string> &argv,
                 quant_vec_is_na_n->resize(_line->size());
             }
 
+            if (row_valid->size() < _line->size()) {
+                row_valid->resize(_line->size());
+            }
+
             size_t line_mismatched = SIZE_MAX;  // first bad line number, SIZE_MAX if none
 
             #pragma omp parallel for schedule(static) reduction(min:line_mismatched)
@@ -929,6 +1044,7 @@ void process(const vector<string> &argv,
                 (*quant_id_vec)[n].clear();
                 (*quant_vec_is_na)[n].clear();
                 (*quant_vec_is_na_n)[n] = 0;
+                (*row_valid)[n] = 0;
 
                 (*_tab)[n][0] = (*_line)[n];
                 size_t pos = 0;
@@ -958,6 +1074,8 @@ void process(const vector<string> &argv,
                     continue;
                 }
 
+                (*row_valid)[n] = 1;  // its sample is registered, even if no value is kept
+
                 size_t i = 0;
                 while (i < filter_string_equal.size() && strcmp((*_tab)[n][col_filter_string_equal[i]], filter_string_equal[i].second) == 0) {
                     i++;
@@ -975,7 +1093,8 @@ void process(const vector<string> &argv,
                         bool ok = true;
                         i = 0;
                         while (i < filter_double_less.size() && ok) {
-                            if (strcmp((*_tab)[n][col_filter_double_less[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_less[i]]) >= filter_double_less[i].second) { // gcc atof does not work for NaN
+                            double v;
+                            if (filter_number((*_tab)[n][col_filter_double_less[i]], &v) && v >= filter_double_less[i].second) {
                                 ok = false;
                             }
                             i++;
@@ -985,7 +1104,8 @@ void process(const vector<string> &argv,
 
                             i = 0;
                             while (i < filter_double_greater.size() && ok) {
-                                if (strcmp((*_tab)[n][col_filter_double_greater[i]], "NaN") != 0 && atof((*_tab)[n][col_filter_double_greater[i]]) <= filter_double_greater[i].second) { // gcc atof does not work for NaN
+                                double v;
+                                if (filter_number((*_tab)[n][col_filter_double_greater[i]], &v) && v <= filter_double_greater[i].second) {
                                     ok = false;
                                 }
                                 i++;
@@ -994,16 +1114,23 @@ void process(const vector<string> &argv,
                             if (ok) {
 
                                 if (intensity_col_sep) {
-                                    utils::split((*_tab)[n][col_quant_ind], intensity_col_sep, &((*quant_vec)[n]));
-                                    if (intensity_col_id) {
-                                        utils::split((*_tab)[n][intensity_col_id_ind], intensity_col_sep, &((*quant_id_vec)[n]));
+                                    // a single column holding several values
+                                    utils::split((*_tab)[n][col_quants_ind[0]], intensity_col_sep, &((*quant_vec)[n]));
+                                    if (has_quant_ids) {
+                                        utils::split((*_tab)[n][col_quant_ids_ind[0]], intensity_col_sep, &((*quant_id_vec)[n]));
                                         if ((*quant_vec)[n].size() != (*quant_id_vec)[n].size()) {
                                             line_mismatched = min(line_mismatched, line_no + n + 1);
                                         }
                                     }
                                 }
                                 else {
-                                    (*quant_vec)[n].push_back((*_tab)[n][col_quant_ind]);
+                                    // one value per column
+                                    for (size_t k = 0; k < col_quants_ind.size(); k++) {
+                                        (*quant_vec)[n].push_back((*_tab)[n][col_quants_ind[k]]);
+                                        if (has_quant_ids) {
+                                            (*quant_id_vec)[n].push_back((*_tab)[n][col_quant_ids_ind[k]]);
+                                        }
+                                    }
                                 }
 
                                 for (auto& s : (*quant_vec)[n]) {
@@ -1045,6 +1172,14 @@ void process(const vector<string> &argv,
             do_ion();
             do_sample();
             do_protein();
+            if (on_chunk) {
+                try {
+                    on_chunk();
+                } catch (...) {
+                    cleanup();
+                    throw;
+                }
+            }
             break;
         }
 
@@ -1082,44 +1217,65 @@ void process(const vector<string> &argv,
             throw runtime_error("Cannot allocate memory.");
         }
 
-        if (samples->size() >= print_threshold) {
+        if (on_chunk && !_line->empty()) {
+            try {
+                on_chunk();
+            } catch (...) {
+                cleanup();
+                throw;
+            }
+        }
+
+        if (quant->size() > (size_t)IQ_MAX_VALUES) {  // values kept in memory (none with on_chunk)
+            cleanup();
+            throw runtime_error(too_many_values_message);
+        }
+
+        if (verbose && samples->size() >= print_threshold) {
             Rprintf("%d samples read\n", (int)samples->size());
             print_threshold = samples->size() + 20;
         }
     }
-    Rprintf("\n# lines read (excluding headers)      = %d\n", (int)(line_no-1));
-    Rprintf("# quantitative values after filtering = %d\n\n", (int)n_after_filtered);
+    if (verbose) {
+        Rprintf("\n# lines read (excluding headers)      = %.0f\n", (double)(line_no-1));
+        Rprintf("# quantitative values after filtering = %.0f\n\n", (double)n_after_filtered);
 
-    Rprintf("# samples  = %d\n", (int)samples->size());
-    Rprintf("# proteins = %d\n", (int)annotation->size());
+        Rprintf("# samples  = %d\n", (int)samples->size());
+        Rprintf("# proteins = %d\n", (int)annotation->size());
+    }
 
     cleanup();
 }
 
-// [[Rcpp::export]]
-SEXP iq_filter(SEXP cmd) {
+// writer: NULL to return all values (fast_read), or an iq format writer that receives the
+// values chunk by chunk (long_format_to_iq_format); the result then has no values, only the
+// lists of proteins, samples and ions.
+// The error of the text reader, kept outside the C++ scopes: iq_filter_impl raises it with
+// Rf_error (a longjmp, which skips destructors) only after iq_filter_body has returned.
+static char filter_error[2048];
+
+static SEXP iq_filter_body(SEXP cmd, iq_writer* writer, bool* failed) {
 
     const char *c = CHAR(STRING_ELT(cmd, 0));
 
+    // the arguments, separated by \001 (.fast_read_command in R); an empty argument, e.g. an
+    // empty filter value, is kept: two separators in a row give an empty argument between them
     vector<string> argv;
-
-    const char *p = c;
 
     const char sep = 1;
 
-    while (*p == sep) {
-        p++;
-    }
-
-    while (*p) {
-        string s = "";
-        while (*p && *p != sep) {
-            s = s + *p++;
-        }
-        argv.push_back(s);
-
-        while (*p == sep) {
-            p++;
+    const char *p = c;
+    if (*p) {
+        while (true) {
+            const char *start = p;
+            while (*p && *p != sep) {
+                p++;
+            }
+            argv.emplace_back(start, p - start);
+            if (*p == 0) {
+                break;
+            }
+            p++;  // past the separator
         }
     }
 
@@ -1133,10 +1289,31 @@ SEXP iq_filter(SEXP cmd) {
     auto samples = new vector<string*>;
     auto ions = new vector<vector<string>*>;
 
+    // values without a protein or sample identifier are left out, as in process()
+    std::function<void()> on_chunk;
+    if (writer) {
+        on_chunk = [&]() {
+            for (size_t k = 0; k < quant->size(); k++) {
+                int p = (*protein_index)[k];
+                int s = (*sample_index)[k];
+                if ((*annotation)[p - 1]->at(0).empty() || (*samples)[s - 1]->empty()) {
+                    writer->n_unidentified++;
+                    continue;
+                }
+                writer->add(p, s, (*ion_index)[k], (*quant)[k]);
+            }
+            protein_index->clear();
+            sample_index->clear();
+            ion_index->clear();
+            quant->clear();
+        };
+    }
+
     try {
-        process(argv, protein_index, sample_index, ion_index, quant, annotation, col_annotation, samples, ions);
+        process(argv, protein_index, sample_index, ion_index, quant, annotation, col_annotation, samples, ions, on_chunk);
     } catch (exception & e) {
-        Rprintf("%s\n", e.what());
+        snprintf(filter_error, sizeof(filter_error), "%s", e.what());
+        *failed = true;
 
         for (auto& a : (*ions)) {
             if (a) {
@@ -1167,7 +1344,17 @@ SEXP iq_filter(SEXP cmd) {
         return (R_NilValue);
     }
 
-    if (ions->size() == 0) {
+    // the R vectors below have an int length
+    const bool too_many = protein_index->size() > (size_t)IQ_MAX_VALUES;
+    if (too_many) {
+        snprintf(filter_error, sizeof(filter_error), "%s", too_many_values_message);
+        *failed = true;
+    } else if (ions->size() == 0) {
+        snprintf(filter_error, sizeof(filter_error), "No quantitative values left after filtering.");
+        *failed = true;
+    }
+
+    if (*failed) {
 
         for (auto& a : (*ions)) {
             if (a) {
@@ -1216,6 +1403,17 @@ SEXP iq_filter(SEXP cmd) {
         SET_STRING_ELT(ion_str, i, Rf_mkChar(utils::concatenate(*(ions->at(i))).c_str()));
     }
 
+    // the secondary_id part of each ion, without the suffix of the intensity value (1, 2, ... or its id)
+    SEXP ion_prefix_str = PROTECT(Rf_allocMatrix(STRSXP, ions->size(), 1));
+    for (size_t i = 0; i < ions->size(); i++) {
+        const vector<string>& parts = *(ions->at(i));
+        string prefix = parts[0];
+        for (size_t j = 1; j + 1 < parts.size(); j++) {
+            prefix += "_" + parts[j];
+        }
+        SET_STRING_ELT(ion_prefix_str, i, Rf_mkChar(prefix.c_str()));
+    }
+
     SEXP sample_str = PROTECT(Rf_allocMatrix(STRSXP, samples->size(), 1));
     for (size_t i = 0; i < samples->size(); i++) {
         SET_STRING_ELT(sample_str, i, Rf_mkChar(samples->at(i)->c_str()));
@@ -1252,21 +1450,23 @@ SEXP iq_filter(SEXP cmd) {
 
     Rf_setAttrib(quant_tab, R_NamesSymbol, quant_tab_names);
 
-    SEXP vec = PROTECT(Rf_allocVector(VECSXP, 4));
+    SEXP vec = PROTECT(Rf_allocVector(VECSXP, 5));
     SET_VECTOR_ELT(vec, 0, quant_tab);
     SET_VECTOR_ELT(vec, 1, ann);
     SET_VECTOR_ELT(vec, 2, sample_str);
     SET_VECTOR_ELT(vec, 3, ion_str);
+    SET_VECTOR_ELT(vec, 4, ion_prefix_str);
 
-    SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, 5));
     SET_STRING_ELT(names, 0, Rf_mkChar("quant_table"));
     SET_STRING_ELT(names, 1, Rf_mkChar("protein"));
     SET_STRING_ELT(names, 2, Rf_mkChar("sample"));
     SET_STRING_ELT(names, 3, Rf_mkChar("ion"));
+    SET_STRING_ELT(names, 4, Rf_mkChar("ion_prefix"));
 
     Rf_setAttrib(vec, R_NamesSymbol, names);
 
-    UNPROTECT(13);
+    UNPROTECT(14);
 
     for (auto& a : (*ions)) {
         if (a) {
@@ -1298,7 +1498,38 @@ SEXP iq_filter(SEXP cmd) {
     return vec;
 }
 
+static SEXP iq_filter_impl(SEXP cmd, iq_writer* writer) {
+    bool failed = false;
+    SEXP res = iq_filter_body(cmd, writer, &failed);
+    if (failed) {
+        Rf_error("%s", filter_error);
+    }
+    return res;
+}
+
+SEXP iq_filter(SEXP cmd) {
+    return iq_filter_impl(cmd, NULL);
+}
+
+SEXP iq_filter_write(SEXP cmd, SEXP writer) {
+    iq_writer* w = NULL;
+    static char message[1024];
+    bool failed = false;
+    try {
+        w = get_writer(writer);
+    } catch (exception& e) {
+        snprintf(message, sizeof(message), "%s", e.what());
+        failed = true;
+    }
+    if (failed) {
+        Rf_error("%s", message);
+    }
+    return iq_filter_impl(cmd, w);
+}
+
 //------------------------------ MaxLFQ -------------------------------------
+
+#ifdef IQ_USE_EIGEN
 
 using Eigen::FullPivHouseholderQR;
 using Eigen::HouseholderQR;
@@ -1342,14 +1573,16 @@ public:
     ion_table(int ncol) : ncol(ncol) {
     }
 
-    // add an entry to a map, increase size if necessary
+    // add an entry (log2) to a map, increase size if necessary; more values of the same ion and
+    // sample: log2 of the summed intensities, as in iq_process
     void add_to_table(int ion, int col, double quant) {
         auto r = map.emplace(ion, vector<double>());
         if (r.second) {
             //n++;
             r.first->second.resize(ncol, NAN);
         }
-        r.first->second[col] = quant;
+        double& cell = r.first->second[col];
+        cell = std::isnan(cell) ? quant : log2(pow(2.0, cell) + pow(2.0, quant));
     }
 
     void spread(int *g, int i, int val) {
@@ -1499,7 +1732,74 @@ public:
 int ion_table::full_connection;
 FullPivHouseholderQR<MatrixXd> ion_table::full_qr;
 
-// [[Rcpp::export]]
+#else  // IQ_USE_EIGEN
+
+// The ions of one protein (fast_MaxLFQ), quantified with the solver of maxlfq_bit.
+class ion_table {
+
+    unordered_map<int, int> rows;  // ion -> row of the matrix
+    vector<int> row_of, col_of;    // each value added: its row and column
+    vector<double> quant_of;       // and the value
+    int ncol;
+
+public:
+    static void init(int) {
+    }
+
+    ion_table(int ncol) : ncol(ncol) {
+    }
+
+    // an ion with a value (log2) in a sample; more values of the same ion and sample are summed
+    // in linear space when the matrix is built (maxLFQ below)
+    void add_to_table(int ion, int col, double quant) {
+        row_of.push_back(rows.emplace(ion, (int)rows.size()).first->second);
+        col_of.push_back(col);
+        quant_of.push_back(quant);
+    }
+
+    // estimates (NaN without data) and the connected component of each sample (g)
+    void maxLFQ(double *buffer, int *g) {
+        int M = (int)rows.size();
+        if (M < 1) {
+            fill_n(buffer, ncol, NAN);
+            fill_n(g, ncol, 0);
+            return;
+        }
+
+        // ions x samples, column-major, NaN = missing; an ion with more than one value in a
+        // sample gets log2 of the summed intensities, as in iq_process
+        vector<double> X((size_t)M * ncol, NAN);
+        vector<int> count((size_t)M * ncol, 0);
+        for (size_t k = 0; k < quant_of.size(); k++) {
+            size_t cell = (size_t)col_of[k] * M + row_of[k];
+            if (count[cell] == 0) {
+                X[cell] = quant_of[k];
+            } else if (count[cell] == 1) {
+                X[cell] = pow(2.0, X[cell]) + pow(2.0, quant_of[k]);  // linear sum
+            } else {
+                X[cell] += pow(2.0, quant_of[k]);
+            }
+            count[cell]++;
+        }
+        for (size_t c = 0; c < X.size(); c++) {
+            if (count[c] > 1) {
+                X[c] = log2(X[c]);
+            }
+        }
+
+        maxlfq_bit(X.data(), M, ncol, buffer, 1, 0);
+
+        if (M == 1) {
+            fill_n(g, ncol, 0);
+        } else {
+            int n_components;
+            connected_components(X.data(), M, ncol, g, n_components);
+        }
+    }
+};
+
+#endif  // IQ_USE_EIGEN
+
 SEXP get_list_element(SEXP list, const char *str) {
     SEXP names = Rf_getAttrib(list, R_NamesSymbol);
 
@@ -1562,6 +1862,8 @@ double dist(double *a, int step, double *b, int n) {
         return NAN;
     }
     
+    /* NOTE: sqrt is correct. Eq. 4 in the paper misses a SQRT*/
+
     return sqrt((double)n / t * (d2));
 }
 
@@ -1662,7 +1964,6 @@ void huber_weight(double* X, int* M, int* N,
     }
 }
 
-// [[Rcpp::export]]
 SEXP iq_MaxLFQ(SEXP list) {
 
     int stop_sig = 0;
@@ -1671,19 +1972,40 @@ SEXP iq_MaxLFQ(SEXP list) {
     int* ions;
     int* samples;
     double* quants;
+    bool verbose;
+    R_xlen_t n_p = 0, n_i = 0, n_s = 0, n_q = 0;
 
     try {
         proteins = INTEGER(get_list_element(list, "protein_index"));
         ions = INTEGER(get_list_element(list, "ion_index"));
         samples = INTEGER(get_list_element(list, "sample_index"));
         quants = REAL(get_list_element(list, "quant"));
+        verbose = Rf_asLogical(get_list_element(list, "verbose")) == TRUE;
+        n_p = Rf_xlength(get_list_element(list, "protein_index"));
+        n_i = Rf_xlength(get_list_element(list, "ion_index"));
+        n_s = Rf_xlength(get_list_element(list, "sample_index"));
+        n_q = Rf_xlength(get_list_element(list, "quant"));
     }
     catch (exception & e) {
         Rprintf("%s\n", e.what());
         return (R_NilValue);
     }
 
-    size_t nrow = Rf_xlength(get_list_element(list, "protein_index"));
+    // also checked by fast_MaxLFQ in R: no values, vectors of different lengths, or an index
+    // below 1 (or NA) would read or write outside the arrays below
+    if (n_p == 0) {
+        Rf_error("iq_MaxLFQ: no values");
+    }
+    if (n_i != n_p || n_s != n_p || n_q != n_p) {
+        Rf_error("iq_MaxLFQ: protein_index, ion_index, sample_index and quant must have the same length");
+    }
+    for (R_xlen_t r = 0; r < n_p; r++) {
+        if (proteins[r] < 1 || samples[r] < 1 || ions[r] == NA_INTEGER) {
+            Rf_error("iq_MaxLFQ: protein_index and sample_index must be 1 or more, ion_index not NA");
+        }
+    }
+
+    size_t nrow = (size_t)n_p;
 
     int n_proteins = utils::count_unique(proteins, nrow);
     int n_samples = utils::count_unique(samples, nrow);
@@ -1695,7 +2017,9 @@ SEXP iq_MaxLFQ(SEXP list) {
     int* row_names = new int[n_proteins];
     int* col_names = new int[n_samples];
 
-    Rprintf("nrow = %d, # proteins = %d, # samples = %d\n", (int)nrow, (int)n_proteins, (int)n_samples);
+    if (verbose) {
+        Rprintf("nrow = %d, # proteins = %d, # samples = %d\n", (int)nrow, (int)n_proteins, (int)n_samples);
+    }
 
     //auto protein_index = new vector< vector<int> >(n_proteins);
     auto protein_index = new vector<vector<int>>(*(std::max_element(proteins, proteins + nrow)));  // allowing for missing proteins
@@ -1751,11 +2075,19 @@ SEXP iq_MaxLFQ(SEXP list) {
 
         omp_set_num_threads(no_threads);
 
-        Rprintf("Using %d threads...\n", no_threads);
+        // the solver of a protein runs single-threaded inside the loop over proteins
+        int saved_levels = omp_get_max_active_levels();
+        omp_set_max_active_levels(1);
+
+        if (verbose) {
+            Rprintf("Using %d threads...\n", no_threads);
+        }
 
     #else
 
-        Rprintf("Using a single CPU core...\n");
+        if (verbose) {
+            Rprintf("Using a single CPU core...\n");
+        }
 
     #endif
 
@@ -1834,7 +2166,7 @@ SEXP iq_MaxLFQ(SEXP list) {
         }
 
         if (thread_id == 0) {
-            if (i > thres_display) {
+            if (verbose && i > thres_display) {
                 Rprintf("%d%%\n", (int)(i * 100 / (*protein_index).size()));
                 R_FlushConsole();
                 thres_display = i + (*protein_index).size() / 20;
@@ -1847,8 +2179,12 @@ SEXP iq_MaxLFQ(SEXP list) {
         }
     }
 
+    #ifdef _OPENMP
+        omp_set_max_active_levels(saved_levels);
+    #endif
+
     if (stop_sig) {
-        Rprintf("Canceled.\n");
+        Rprintf("Cancelled.\n");
 
         UNPROTECT(1);
 
@@ -1894,7 +2230,9 @@ SEXP iq_MaxLFQ(SEXP list) {
 
     Rf_setAttrib(vec, R_NamesSymbol, names);
 
-    Rprintf("Completed.\n");
+    if (verbose) {
+        Rprintf("Completed.\n");
+    }
 
     UNPROTECT(7);
 
@@ -1906,7 +2244,244 @@ SEXP iq_MaxLFQ(SEXP list) {
     return (vec);
 }
 
-// [[Rcpp::export]]
+//------------------------------ quantification of one protein ---------------------
+
+// p1 / p2 from R: an empty vector (a method without the parameter) gives a default of 0
+// instead of R's pointer for an empty vector, which must not be dereferenced
+static double p1_default = 0.0;
+static int p2_default = 0;
+
+static double* p1_pointer(SEXP p1) {
+    return Rf_xlength(p1) > 0 ? REAL(p1) : &p1_default;
+}
+
+static int* p2_pointer(SEXP p2) {
+    return Rf_xlength(p2) > 0 ? INTEGER(p2) : &p2_default;
+}
+
+// The method of iq_quant (process_matrix) for one protein.
+// Direct summaries of a protein, per sample, on the scale of the data (X: M ions x N samples,
+// column-major, log2, NaN = missing; x: N values, NaN for a sample without data):
+//   method 7 "sum": log2 of the summed intensities
+//   method 8 "mean": the mean log2 intensity
+//   method 9 "topN": the mean log2 intensity of the top_n ions with the highest mean log2
+//     intensity over the samples (equal means: in input order), as topN() in R
+static void summarize_matrix(const double* X, int M, int N, int method, int top_n, double* x) {
+
+    vector<int> rows(M);
+    for (int i = 0; i < M; i++) {
+        rows[i] = i;
+    }
+
+    if (method == 9) {
+        vector<double> row_mean(M);
+        vector<double> v;
+        for (int i = 0; i < M; i++) {
+            v.clear();
+            for (int j = 0; j < N; j++) {
+                if (!isnan(X[i + (size_t)j * M])) {
+                    v.push_back(X[i + (size_t)j * M]);
+                }
+            }
+            row_mean[i] = mean_value(v.data(), v.size());  // NaN for an ion without values
+        }
+        std::stable_sort(rows.begin(), rows.end(), [&](int a, int b) {
+            if (isnan(row_mean[b])) {
+                return !isnan(row_mean[a]);  // ions without values last
+            }
+            return !isnan(row_mean[a]) && row_mean[a] > row_mean[b];
+        });
+        rows.resize(top_n < M ? (top_n > 0 ? top_n : 0) : M);
+    }
+
+    vector<double> v;
+    for (int j = 0; j < N; j++) {
+        v.clear();
+        for (int i : rows) {
+            if (!isnan(X[i + (size_t)j * M])) {
+                v.push_back(X[i + (size_t)j * M]);
+            }
+        }
+        x[j] = (method == 7) ? log2_sum(v.data(), v.size()) : mean_value(v.data(), v.size());
+    }
+}
+
+// X: M ions x N samples, column-major, NaN = missing.
+// x: N sample estimates; s: M ion offsets (NaN unless median polish or rlm).
+// After the method, x is shifted so that its mean equals the mean of the data (not for the
+// direct summaries, methods 7 to 9).
+// p1 / p2 point to one value each (a default of 0 for an empty vector from R, see p1_pointer).
+// Returns false for an unknown method (x and s are then NaN).
+// Used in a parallel loop by iq_process with no_threads = 1 (nested regions inactive).
+static bool quantify_matrix(double* X, int M, int N, int method, double* p1, int* p2,
+                            double k, int min_M, int no_threads, double* x, double* s) {
+
+    fill_n(s, M, NAN);  // only median polish and rlm compute ion offsets
+
+    if (method >= 7 && method <= 9) {
+        summarize_matrix(X, M, N, method, *p2, x);
+        return true;
+    }
+
+    // mean data
+    int no_t = 0;
+    double sum = 0.0;
+    for (int i = 0; i < M * N; i++) {
+        if (!isnan(X[i])) {
+            no_t++;
+            sum += X[i];
+        }
+    }
+
+    if (no_t == 0) {  // all NA
+        fill_n(x, N, NAN);
+        return true;
+    }
+
+    bool known = true;
+
+    switch (method) {
+
+        case 0:  // maxlfq
+        {
+            #ifdef IQ_USE_EIGEN
+            std::unordered_map<int, std::vector<double>> map;
+            for (int i = 0; i < M; i++) {
+                map[i].resize(N);
+                for (int j = 0; j < N; j++) {
+                    map[i][j] = X[j * M + i];
+                }
+            }
+            vector<int> gr(N);
+            maxlfq(map, x, gr.data());
+            #else
+            maxlfq_bit(X, M, N, x, no_threads, *p2);  // p2: memory level, as "maxlfq_bit"
+            #endif
+            break;
+        }
+        case 1:  // maxlfq_bit
+        {
+            maxlfq_bit(X, M, N, x, no_threads, *p2);
+            break;
+        }
+        case 2:  // weighted maxlfq
+        {
+            #ifdef IQ_USE_EIGEN
+            std::unordered_map<int, std::vector<double>> map;
+            for (int i = 0; i < M; i++) {
+                map[i].resize(N);
+                for (int j = 0; j < N; j++) {
+                    map[i][j] = X[j * M + i];
+                }
+            }
+            vector<int> gr(N);
+            maxlfq(map, x, gr.data());
+
+            if (M >= min_M) {
+                vector<double> w(M);
+                huber_weight(X, &M, &N, x, w.data(), 1.4826, k);
+                weighted_maxlfq(map, x, gr.data(), w.data());
+            }
+            #else
+            maxlfq_bit(X, M, N, x, no_threads, *p2);  // p2: memory level, as "maxlfq_bit"
+
+            if (M >= min_M) {
+                vector<double> w(M);
+                huber_weight(X, &M, &N, x, w.data(), 1.4826, k);
+                weighted_maxlfq_bit(X, M, N, x, w.data(), no_threads, *p2);
+            }
+            #endif
+            break;
+        }
+        case 3:  // median polish
+        {
+            median_polish(X, M, N, s, x, no_threads, *p1, *p2);
+            break;
+        }
+        case 4:  // weighted median polish
+        {
+            if (M == 1) {
+                for (int j = 0; j < N; j++) {
+                    x[j] = X[j];
+                }
+            } else {
+                median_polish(X, M, N, s, x, no_threads, *p1, *p2);
+
+                if (M >= min_M) {
+                    vector<double> w(M);
+                    huber_weight(X, &M, &N, x, w.data(), 1.4826, k);
+                    weighted_median_polish(X, M, N, s, x, w.data(), *p1, *p2);
+                }
+            }
+            break;
+        }
+        case 5:  // huber
+        {
+            huber(X, M, N, s, x, no_threads, *p1, *p2);
+            break;
+        }
+        case 6:  // weighted huber
+        {
+            huber(X, M, N, s, x, no_threads, *p1, *p2);
+
+            if (M >= min_M) {
+                vector<double> w(M);
+                huber_weight(X, &M, &N, x, w.data(), 1.4826, k);
+                weighted_huber(X, M, N, s, x, w.data(), no_threads, *p1, *p2);
+            }
+            break;
+        }
+        default:
+            fill_n(x, N, NAN);
+            fill_n(s, M, NAN);
+            known = false;
+            break;
+    }
+
+    int no_x = 0;
+    double sum_x = 0.0;
+    for (int j = 0; j < N; j++) {
+        if (!isnan(x[j])) {
+            no_x++;
+            sum_x += x[j];
+        }
+    }
+
+    if (no_x > 0) {
+        // mean data
+        double mean_data = sum * (double)no_x / (double)no_t;
+
+        // scaling
+        double delta = (mean_data - sum_x) / no_x;
+        for (int j = 0; j < N; j++) {
+            if (!isnan(x[j])) {
+                x[j] += delta;
+            }
+        }
+    }
+
+    return known;
+}
+
+// number of threads from n_threads: > 0 at most that many, <= 0 all cores + n_threads
+static int thread_count(int n_threads) {
+    int no_threads = 1;
+    #ifdef _OPENMP
+    int n_procs = omp_get_num_procs();
+    if (n_threads > 0) {
+        no_threads = n_procs >= n_threads ? n_threads : n_procs;
+    } else {
+        no_threads = n_procs + n_threads;
+    }
+    if (no_threads < 1) {
+        no_threads = 1;
+    }
+    #else
+    (void)n_threads;
+    #endif
+    return no_threads;
+}
+
 extern "C" {
     
 SEXP iq_quant(SEXP list) {
@@ -1926,8 +2501,8 @@ SEXP iq_quant(SEXP list) {
         M = INTEGER(get_list_element(list, "M"));
         N = INTEGER(get_list_element(list, "N"));
         method = INTEGER(get_list_element(list, "method"));
-        p1 = REAL(get_list_element(list, "p1"));
-        p2 = INTEGER(get_list_element(list, "p2"));
+        p1 = p1_pointer(get_list_element(list, "p1"));
+        p2 = p2_pointer(get_list_element(list, "p2"));
         k = REAL(get_list_element(list, "k"));
         min_M = INTEGER(get_list_element(list, "min_M"));
         threads = INTEGER(get_list_element(list, "n_threads"));
@@ -1941,203 +2516,18 @@ SEXP iq_quant(SEXP list) {
     double* _x = REAL(x);
     SEXP s = PROTECT(Rf_allocVector(REALSXP, *M));
     double* _s = REAL(s);
-    fill_n(_s, *M, NA_REAL);  // only median polish and rlm compute fragment offsets
-        
-    // calculate mean data
-    int no_t = 0;
-        
-    double sum = 0.0;
-        
-    for (int i = 0; i < (*M) * (*N); i++) {
-        if (!isnan(X[i])) {
-            no_t++;
-            sum += X[i];
-        }
-    }
-        
-    if (no_t == 0) {
-        // all NA
-        fill_n(_x, *N, NAN);
-        fill_n(_s, *M, NAN);
-    }
-    else {
-            
-        int no_threads = 1;
-            
-        #ifdef _OPENMP
-        omp_set_dynamic(0);
-        int tmp = omp_get_num_procs();
-            
-        if (*threads > 0) {
-            no_threads = tmp >= *threads ? *threads : tmp;
-        }
-        else {
-            no_threads = tmp + *threads;
-        }
-            
-        if (no_threads < 1) {
-            no_threads = 1;
-        }
-        omp_set_num_threads(no_threads);
-            
-        #endif
-            
-        switch (*method) {
-            
-            case 0: // maxlfq
 
-            {
-                int n_samples = *N;
-                
-                std::unordered_map<int, std::vector<double>>* map = new std::unordered_map<int, std::vector<double>>;
-                
-                for (int i = 0; i < *M; i++) {
-                    (*map)[i].resize(*N);
-                    for (int j = 0; j < *N; j++) {
-                        (*map)[i][j] = X[j * (*M) + i];
-                    }
-                }
-                
-                    int *gr = new int[n_samples];
-                    if (*method == 0) {
-                        maxlfq(*map, _x, gr);
-                    }
+    int no_threads = thread_count(*threads);
 
-                    delete [] gr;
+    #ifdef _OPENMP
+    omp_set_dynamic(0);
+    omp_set_num_threads(no_threads);
+    #endif
 
-                delete map;
-                
-                break;
-            }
-            case 1: // maxlfq_bit
-            {
-                maxlfq_bit(X, *M, *N, _x, no_threads, *p2);
-                break;
-            }
-            case 2: // weighted maxlfq
-            {
-                
-                int n_samples = *N;
-                
-                std::unordered_map<int, std::vector<double>>* map = new std::unordered_map<int, std::vector<double>>;
-                
-                for (int i = 0; i < *M; i++) {
-                    (*map)[i].resize(*N);
-                    for (int j = 0; j < *N; j++) {
-                        (*map)[i][j] = X[j * (*M) + i];
-                    }
-                }
-                
-                
-                int *gr = new int[n_samples];
-                
-                double* w = new double[*M];
-                
-                
-                maxlfq(*map, _x, gr);
-                
-                if (*M >= *min_M) {
-                    
-                    huber_weight(X, M, N, _x, w, 1.4826, *k);
-                    
-                    weighted_maxlfq(*map, _x, gr, w);
-                    
-                }
-                
-                
-                delete [] w;
-                delete [] gr;
-                delete map;
-                
-                break;
-            }
-                
-            case 3: // median polish
-            {
-                median_polish(X, *M, *N, _s, _x, no_threads, *p1, *p2);
-                break;
-            }
-                
-            case 4: // weighted median polish
-            {
-                if (*M == 1) {
-                    for (int j = 0; j < *N; j++) {
-                        _x[j] = X[j];
-                    }
-                }
-                else {
-                    median_polish(X, *M, *N, _s, _x, no_threads, *p1, *p2);
-                    
-                    if (*M >= *min_M) {
-                        
-                        double* w = new double[*M];
-                        
-                        huber_weight(X, M, N, _x, w, 1.4826, *k);
-                        
-                        weighted_median_polish(X, *M, *N, _s, _x, w, *p1, *p2);
-                        
-                        delete [] w;
-                    }
-                }
-                break;
-            }
-            case 5: // huber
-            {
-                huber(X, *M, *N, _s, _x, no_threads, *p1, (int)*p2);
-                break;
-            }
-            case 6: // weighted huber
-            {
-                huber(X, *M, *N, _s, _x, no_threads, *p1, (int)*p2);
-                
-                if (*M >= *min_M) {
-                    double* w = new double[*M];
-                    
-                    huber_weight(X, M, N, _x, w, 1.4826, *k);
-                    
-                    weighted_huber(X, *M, *N, _s, _x, w, no_threads, *p1, (int)*p2);
-                    
-                    delete [] w;
-                }
-                break;
-            }
-
-
-            default:
-                
-                Rprintf("Unknown method.\n");
-                fill_n(_x, *N, NAN);
-                fill_n(_s, *M, NAN);
-                break;
-                
-        }
-            
+    if (!quantify_matrix(X, *M, *N, *method, p1, p2, *k, *min_M, no_threads, _x, _s)) {
+        Rprintf("Unknown method.\n");
     }
-        
-    int no_x = 0;
-    double sum_x = 0.0;
-        
-    for (int j = 0; j < *N; j++) {
-        if (!isnan(_x[j])) {
-            no_x++;
-            sum_x += _x[j];
-        }
-    }
-        
-    if (no_x > 0 ) {
-        // mean data
-        double mean_data = sum * (double)no_x / (double)no_t;
-            
-        // scaling
-        double delta = (mean_data - sum_x) / no_x;
-        for (int j = 0; j < *N; j++) {
-            if (!isnan(_x[j])) {
-                _x[j] += delta;
-            }
-        }
-    }
-        
-        
+
     for (int i = 0; i < *M; i++) {
         if (isnan(_s[i])) {
             _s[i] = NA_REAL;
@@ -2165,8 +2555,238 @@ SEXP iq_quant(SEXP list) {
     return (vec);
         
 }
+
+// All proteins at once, in parallel over proteins (like iq_MaxLFQ), each with the
+// method of iq_quant (process_matrix). The matrix of a protein is built as in
+// process_iq_format: ions (rows) in input order, all samples (columns); an ion with
+// more than one value in a sample gets log2 of the summed intensities; non-finite
+// values are missing.
+//
+// list: protein_index, ion_index, sample_index (1-based), quant (log2),
+//       n_proteins, n_samples, method, p1, p2, k, min_M, n_threads,
+//       rescale_method (0 none, 1-4 as in rescale_components)
+// Returns an n_proteins x n_samples matrix (NA rows for proteins without data),
+// or NULL if interrupted.
+SEXP iq_process(SEXP list) {
+
+    char error_message[256] = "";
+
+    int *proteins = nullptr, *ions = nullptr, *samples = nullptr;
+    double* quants = nullptr;
+    R_xlen_t nrow = 0;
+    int n_proteins = 0, n_samples = 0, method = 0, min_M = 0, n_threads = 0, rescale_method = 0;
+    double* p1 = nullptr;
+    int* p2 = nullptr;
+    double k = 0;
+    int verbose = 1;  // 0: no thread count, progress or "Completed." (process_iq_format, per batch)
+
+    try {
+        SEXP p = get_list_element(list, "protein_index");
+        SEXP i = get_list_element(list, "ion_index");
+        SEXP s = get_list_element(list, "sample_index");
+        SEXP q = get_list_element(list, "quant");
+        nrow = Rf_xlength(p);
+        if (TYPEOF(p) != INTSXP || TYPEOF(i) != INTSXP || TYPEOF(s) != INTSXP || TYPEOF(q) != REALSXP ||
+            Rf_xlength(i) != nrow || Rf_xlength(s) != nrow || Rf_xlength(q) != nrow) {
+            throw runtime_error("protein_index, ion_index, sample_index (integer) and quant (double) must have the same length");
+        }
+        proteins = INTEGER(p);
+        ions = INTEGER(i);
+        samples = INTEGER(s);
+        quants = REAL(q);
+
+        n_proteins = INTEGER(get_list_element(list, "n_proteins"))[0];
+        n_samples = INTEGER(get_list_element(list, "n_samples"))[0];
+        method = INTEGER(get_list_element(list, "method"))[0];
+        p1 = p1_pointer(get_list_element(list, "p1"));
+        p2 = p2_pointer(get_list_element(list, "p2"));
+        k = REAL(get_list_element(list, "k"))[0];
+        min_M = INTEGER(get_list_element(list, "min_M"))[0];
+        n_threads = INTEGER(get_list_element(list, "n_threads"))[0];
+        rescale_method = INTEGER(get_list_element(list, "rescale_method"))[0];
+        verbose = Rf_asLogical(get_list_element(list, "verbose")) == TRUE;
+
+        if (method < 0 || method > 9) {
+            throw runtime_error("unknown method");
+        }
+        for (R_xlen_t r = 0; r < nrow; r++) {
+            if (proteins[r] < 1 || proteins[r] > n_proteins || samples[r] < 1 || samples[r] > n_samples ||
+                ions[r] == NA_INTEGER) {
+                throw runtime_error("protein_index, sample_index or ion_index out of range");
+            }
+        }
+    } catch (exception& e) {
+        snprintf(error_message, sizeof(error_message), "%s", e.what());
+    }
+    if (error_message[0]) {
+        Rf_error("%s", error_message);
+    }
+
+    SEXP table = PROTECT(Rf_allocMatrix(REALSXP, n_proteins, n_samples));
+    double* buffer = REAL(table);
+    fill_n(buffer, (size_t)n_proteins * n_samples, NA_REAL);
+
+    // rows of each protein, in input order
+    vector<vector<R_xlen_t>> protein_rows(n_proteins);
+    for (R_xlen_t r = 0; r < nrow; r++) {
+        protein_rows[proteins[r] - 1].push_back(r);
+    }
+
+    int no_threads = thread_count(n_threads);
+
+    #ifdef _OPENMP
+    // OpenMP settings of the session, restored at the end
+    int saved_dynamic = omp_get_dynamic();
+    int saved_threads = omp_get_max_threads();
+    int saved_levels = omp_get_max_active_levels();
+
+    omp_set_dynamic(0);
+    omp_set_num_threads(no_threads);
+    omp_set_max_active_levels(1);  // the methods run single-threaded inside the loop
+    if (verbose) {
+        Rprintf("Using %d threads...\n", no_threads);
+    }
+    #endif
+
+    int stop_sig = 0;
+    int failed = 0;
+    size_t thres_display = 0;
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int p = 0; p < n_proteins; p++) {
+
+        if (stop_sig || failed || protein_rows[p].empty()) {
+            continue;
+        }
+
+        try {
+            const vector<R_xlen_t>& rows = protein_rows[p];
+
+            // ion -> row, in order of appearance
+            std::unordered_map<int, int> ion_row;
+            for (auto r : rows) {
+                ion_row.emplace(ions[r], (int)ion_row.size());
+            }
+            int M = (int)ion_row.size();
+            int N = n_samples;
+
+            vector<double> X((size_t)M * N, NAN);
+            vector<int> count((size_t)M * N, 0);
+
+            for (auto r : rows) {
+                size_t cell = ion_row[ions[r]] + (size_t)(samples[r] - 1) * M;
+                double v = quants[r];
+                if (count[cell] == 0) {
+                    X[cell] = v;
+                } else if (count[cell] == 1) {
+                    X[cell] = pow(2.0, X[cell]) + pow(2.0, v);  // linear sum
+                } else {
+                    X[cell] += pow(2.0, v);
+                }
+                count[cell]++;
+            }
+            for (size_t c = 0; c < X.size(); c++) {
+                if (count[c] > 1) {
+                    X[c] = log2(X[c]);
+                }
+                if (!std::isfinite(X[c])) {
+                    X[c] = NAN;
+                }
+            }
+
+            vector<double> x(N), s(M);
+            if (M == 1) {  // as process_matrix: the values of the only ion
+                std::copy(X.begin(), X.end(), x.begin());
+            } else {
+                quantify_matrix(X.data(), M, N, method, p1, p2, k, min_M, 1, x.data(), s.data());
+            }
+
+            // as rescale() after process_matrix in process_iq_format (X is not changed by the methods)
+            rescale_components(X.data(), M, N, x.data(), rescale_method);
+
+            for (int j = 0; j < N; j++) {
+                buffer[p + (size_t)j * n_proteins] = isnan(x[j]) ? NA_REAL : x[j];
+            }
+        } catch (...) {
+            #pragma omp atomic write
+            failed = 1;
+        }
+
+        #ifdef _OPENMP
+        if (omp_get_thread_num() == 0) {
+        #endif
+            if (verbose && (size_t)p > thres_display) {
+                Rprintf("%d%%\n", (int)((size_t)p * 100 / n_proteins));
+                R_FlushConsole();
+                thres_display = p + n_proteins / 20;
+            }
+            if (tp_check()) {  // user interrupted ...
+                #pragma omp atomic write
+                stop_sig = 1;
+            }
+        #ifdef _OPENMP
+        }
+        #endif
+    }
+
+    #ifdef _OPENMP
+    omp_set_dynamic(saved_dynamic);
+    omp_set_num_threads(saved_threads);
+    omp_set_max_active_levels(saved_levels);
+    #endif
+
+    vector<vector<R_xlen_t>>().swap(protein_rows);  // free before Rf_error, which skips destructors
+
+    if (failed) {
+        UNPROTECT(1);
+        Rf_error("Quantification failed (out of memory?).");
+    }
+
+    if (stop_sig) {
+        Rprintf("Cancelled.\n");
+        UNPROTECT(1);
+        return R_NilValue;
+    }
+
+    if (verbose) {
+        Rprintf("Completed.\n");
+    }
+    UNPROTECT(1);
+    return table;
+}
+
     
     
+// R's rescale(): list(X, M, N, x, method), method 1-4 as in rescale_components
+SEXP iq_rescale(SEXP list) {
+
+    SEXP X = get_list_element(list, "X");
+    SEXP x = get_list_element(list, "x");
+    int M = INTEGER(get_list_element(list, "M"))[0];
+    int N = INTEGER(get_list_element(list, "N"))[0];
+    int method = INTEGER(get_list_element(list, "method"))[0];
+
+    if (TYPEOF(X) != REALSXP || TYPEOF(x) != REALSXP || M < 1 || N < 1 ||
+        Rf_xlength(X) != (R_xlen_t)M * N || Rf_xlength(x) != N) {
+        Rf_error("rescale: x must have one value per column of X");
+    }
+
+    SEXP out = PROTECT(Rf_allocVector(REALSXP, N));
+    double* _out = REAL(out);
+    std::copy(REAL(x), REAL(x) + N, _out);
+
+    rescale_components(REAL(X), M, N, _out, method);
+
+    for (int j = 0; j < N; j++) {
+        if (isnan(_out[j])) {
+            _out[j] = NA_REAL;
+        }
+    }
+
+    UNPROTECT(1);
+    return out;
+}
+
 SEXP iq_connected_components(SEXP list) {
         
     double* X;
@@ -2237,16 +2857,38 @@ SEXP iq_huber_weight(SEXP list) {
 }
 
 
+// TRUE if built with the original MaxLFQ (Eigen, IQ_USE_EIGEN), see src/Makevars
+SEXP iq_eigen(void) {
+    #ifdef IQ_USE_EIGEN
+    return Rf_ScalarLogical(TRUE);
+    #else
+    return Rf_ScalarLogical(FALSE);
+    #endif
+}
+
 static const R_CallMethodDef callMethods[]  = {
     {"iq_filter", (DL_FUNC) &iq_filter, 1},
+    {"iq_filter_write", (DL_FUNC) &iq_filter_write, 2},
     {"iq_MaxLFQ", (DL_FUNC) &iq_MaxLFQ, 1},
     {"iq_quant", (DL_FUNC) &iq_quant, 1},
+    {"iq_process", (DL_FUNC) &iq_process, 1},
+    {"iq_rescale", (DL_FUNC) &iq_rescale, 1},
+    {"iq_eigen", (DL_FUNC) &iq_eigen, 0},
     {"iq_connected_components", (DL_FUNC) &iq_connected_components, 1},
     {"iq_huber_weight", (DL_FUNC) &iq_huber_weight, 1},
+    {"iq_stream_begin", (DL_FUNC) &iq_stream_begin, 1},
+    {"iq_stream_add", (DL_FUNC) &iq_stream_add, 2},
+    {"iq_stream_end", (DL_FUNC) &iq_stream_end, 2},
+    {"iq_stream_write", (DL_FUNC) &iq_stream_write, 2},
+    {"iq_writer_begin", (DL_FUNC) &iq_writer_begin, 1},
+    {"iq_writer_end", (DL_FUNC) &iq_writer_end, 1},
+    {"iq_read_sample_values", (DL_FUNC) &iq_read_sample_values, 4},
+    {"iq_read_protein_batch", (DL_FUNC) &iq_read_protein_batch, 5},
     {NULL, NULL, 0}
 };
 
-void R_init_myLib(DllInfo *info) {
+// called by R when the library is loaded; the name must be R_init_<package name>
+extern "C" void R_init_iq(DllInfo *info) {
     R_registerRoutines(info, NULL, callMethods, NULL, NULL);
     R_useDynamicSymbols(info, FALSE);
 }

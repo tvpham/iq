@@ -1,17 +1,17 @@
 /*#########################################################################
  
- Author: Thang V. Pham, t.pham@amsterdamumc.nl, Pham Huy Chau Long
+ Authors: Thang V. Pham {t.pham@amsterdamumc.nl}, Pham Huy Chau Long
  
  All rights reserved.
  
- Citations:
+ Citation:
  
  Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
  Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
  quantification algorithms in mass spectrometry-based proteomics.
- Journal of Proteome Research 2026 Feb 6; 25(2):1198–1203.
+ Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
  
- Software version: 2.1
+ Software version: 2.2.0
  
 #########################################################################*/
 
@@ -19,6 +19,10 @@
 #define __MAXLFQ1_H
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <numeric>
+#include <vector>
 
 #include "utils.h"
 
@@ -194,7 +198,14 @@ void solve(double* X, int M, int N,
 }
 
 
-void maxlfq_bit(double* X, int M, int N, double* x, int no_threads = 1, int memory_level = 0) {
+// MaxLFQ: the pairwise sample ratios are the medians of the ion ratios; with ion weights w
+// (not NULL), the weighted medians (weighted MaxLFQ). The least-squares system is the same.
+static void maxlfq_bit_solve(double* X, int M, int N, double* x, int no_threads, int memory_level,
+                             const double* w) {
+
+    if (no_threads < 1) {
+        no_threads = 1;
+    }
 
     if (M == 1) {
         for (int i = 0; i < N; i++) {
@@ -215,6 +226,12 @@ void maxlfq_bit(double* X, int M, int N, double* x, int no_threads = 1, int memo
     double* Ap = new double[(size_t)N + 1];
 
     double *big_median_buffer = new double[M * no_threads];
+
+    // weighted medians: one buffer of (value, weight) per thread
+    std::vector<std::vector<weighted_sample_t>> big_points;
+    if (w != NULL) {
+        big_points.assign(no_threads, std::vector<weighted_sample_t>(M));
+    }
 
     // default if memory_level < 0
     void* AtA = NULL;
@@ -276,7 +293,8 @@ void maxlfq_bit(double* X, int M, int N, double* x, int no_threads = 1, int memo
     unsigned char bit_mask[8] = {1, 2, 4, 8, 16, 32, 64, 128};
     
 
-    #pragma omp parallel for schedule(dynamic)
+    // at most no_threads threads: the buffers above are per thread
+    #pragma omp parallel for schedule(dynamic) num_threads(no_threads)
     for (size_t i = 0; i < (size_t)N - 1; i++) {
         
         int thread_id = 0;
@@ -295,18 +313,35 @@ void maxlfq_bit(double* X, int M, int N, double* x, int no_threads = 1, int memo
 
             double* ip = X + M * i;
             double* jp = X + M * j;
-            for (size_t r = 0; r < (size_t)M; r++) {
-                if (!std::isnan(*ip) && !std::isnan(*jp)) {
-                    median_buffer[median_size++] = *jp - *ip;
+            if (w == NULL) {
+                for (size_t r = 0; r < (size_t)M; r++) {
+                    if (!std::isnan(*ip) && !std::isnan(*jp)) {
+                        median_buffer[median_size++] = *jp - *ip;
+                    }
+                    ip++;
+                    jp++;
                 }
-                ip++;
-                jp++;
+            } else {
+                std::vector<weighted_sample_t>& points = big_points[thread_id];
+                for (size_t r = 0; r < (size_t)M; r++) {
+                    if (!std::isnan(*ip) && !std::isnan(*jp)) {
+                        points[median_size].value = *jp - *ip;
+                        points[median_size].weight = w[r];
+                        median_size++;
+                    }
+                    ip++;
+                    jp++;
+                }
             }
 
             if (median_size > 0) {
                 double r_i_j;
                 
-                r_i_j = quick_median(median_buffer, median_size);
+                if (w == NULL) {
+                    r_i_j = quick_median(median_buffer, median_size);
+                } else {
+                    r_i_j = weighted_median(big_points[thread_id], median_size);
+                }
 
                 #pragma omp atomic
                 Atb[i] -= r_i_j;
@@ -388,6 +423,50 @@ void maxlfq_bit(double* X, int M, int N, double* x, int no_threads = 1, int memo
     delete [] r;
     delete [] x0;
     delete [] Atb;
+}
+
+
+void maxlfq_bit(double* X, int M, int N, double* x, int no_threads = 1, int memory_level = 0) {
+    maxlfq_bit_solve(X, M, N, x, no_threads, memory_level, NULL);
+}
+
+
+// Weighted MaxLFQ with ion weights w (M values), as weighted_maxlfq in maxlfq.h: the pairwise
+// ratios are weighted medians, and a sample that is a connected component by itself gets the
+// weighted median of its ions (rescale() in utils.h uses the unweighted median).
+void weighted_maxlfq_bit(double* X, int M, int N, double* x, const double* w,
+                         int no_threads = 1, int memory_level = 0) {
+
+    maxlfq_bit_solve(X, M, N, x, no_threads, memory_level, w);
+
+    if (M == 1) {
+        return;
+    }
+
+    std::vector<int> components(N);
+    int n_components;
+    connected_components(X, M, N, components.data(), n_components);
+
+    std::vector<int> size(n_components, 0);
+    for (int j = 0; j < N; j++) {
+        size[components[j]]++;
+    }
+
+    std::vector<weighted_sample_t> points(M);
+    for (int j = 0; j < N; j++) {
+        if (size[components[j]] != 1) {
+            continue;
+        }
+        size_t n = 0;
+        for (int r = 0; r < M; r++) {
+            if (!std::isnan(X[j * M + r])) {
+                points[n].value = X[j * M + r];
+                points[n].weight = w[r];
+                n++;
+            }
+        }
+        x[j] = n > 0 ? weighted_median(points, n) : NAN;
+    }
 }
 
 #endif

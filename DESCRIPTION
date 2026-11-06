@@ -1,37 +1,31 @@
 Package: iq
 Type: Package
 Title: Protein Quantification in Mass Spectrometry-Based Proteomics
-Version: 2.1.0
-Authors@R: c(person("Thang", "Pham", email = "t.pham@amsterdamumc.nl",
-                    role = c("aut", "cre", "cph", "ctb"),
+Version: 2.2.0
+Authors@R: c(person(c("Thang", "V."), "Pham", email = "t.pham@amsterdamumc.nl",
+                    role = c("aut", "cre", "cph"),
                     comment = c(ORCID = "0000-0003-0333-2492")),
-             person("Alex", "Henneman",
+             person(c("Alex", "A."), "Henneman",
                     role = c("ctb"),
                     comment = c(ORCID = "0000-0002-3746-4410")))
-Maintainer: Thang Pham <t.pham@amsterdamumc.nl>
+Maintainer: Thang V. Pham <t.pham@amsterdamumc.nl>
 Description: An implementation of the MaxLFQ algorithm by
-    Cox et al. (2014) <doi:10.1074/mcp.M113.031591> in a comprehensive
+    Cox et al. (2014) <doi:10.1074/mcp.M113.031591> using least-squares analysis in a comprehensive
     pipeline for processing proteomics data in data-independent acquisition mode
-    (Pham et al. 2020 <doi:10.1093/bioinformatics/btz961>;
+    (Pham et al. 2020 <doi:10.1093/bioinformatics/btz961>, and a new algorithm using the conjugate gradient method
     Pham et al. 2026 <doi:10.1021/acs.jproteome.5c01038>).
     It offers additional options for protein quantification using
     the N most intense fragment ions, using all fragment ions, 
     the median polish algorithm by Tukey (1977, ISBN:0201076160), 
-    and a robust linear model. In general, the tool can be used to integrate
+    a robust linear model, and fragment weighting. A new 'iq' format enables the processing of large-scale datasets.
+    In general, the tool can be used to integrate
     multiple proportional observations into a single quantitative value.
-Depends: R (>= 2.10)
+Depends: R (>= 4.0.0)
 License: BSD_3_clause + file LICENSE
-LinkingTo: Rcpp, RcppEigen
 Encoding: UTF-8
 LazyData: true
-Suggests: knitr, rmarkdown
+Suggests: knitr, rmarkdown, arrow
 VignetteBuilder: knitr
 URL: https://github.com/tvpham/iq
 BugReports: https://github.com/tvpham/iq/issues
 NeedsCompilation: yes
-Packaged: 2026-10-27 21:15:01 UTC; p032181
-Author: Thang Pham [aut, cre, cph, ctb]
-    (<https://orcid.org/0000-0003-0333-2492>),
-  Alex Henneman [ctb] (<https://orcid.org/0000-0002-3746-4410>)
-Repository: CRAN
-Date/Publication: 2026-03-21 16:28:00 UTC

@@ -1,17 +1,17 @@
 /*#########################################################################
  
- Author: Thang V. Pham, t.pham@amsterdamumc.nl
+ Author: Thang V. Pham {t.pham@amsterdamumc.nl}
  
  All rights reserved.
  
- Citations:
+ Citation:
  
  Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, 
  Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein 
  quantification algorithms in mass spectrometry-based proteomics.
- Journal of Proteome Research 2026 Feb 6; 25(2):1198–1203.
+ Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
  
- Software version: 2.1
+ Software version: 2.2.0
  
 #########################################################################*/
  

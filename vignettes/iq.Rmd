@@ -1,12 +1,12 @@
 ---
 title: "Relative protein quantification for DIA-MS-based proteomics"
 author: "Thang V Pham"
-date: "2024-12-04" 
+date: "2026-11-05" 
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics}
   %\VignetteEngine{knitr::rmarkdown}
-  %VignetteEncoding{UTF-8}
+  %\VignetteEncoding{UTF-8}
 ---
 
 
@@ -15,8 +15,7 @@ vignette: >
 
 ## Introduction
 
-The **iq** package, short for ion-based protein quantification, implements the MaxLFQ algorithm for data-independent acquisition (DIA) mass spectrometry (MS) based proteomics data. The algorithm was originally designed for data
-dependent acquisition (DDA) data (Cox et al., MCP 2014).
+The **iq** package (Pham et al. 2020, Pham et al. 2026), short for ion-based protein quantification, implements the MaxLFQ algorithm for data-independent acquisition (DIA) mass spectrometry (MS) based proteomics data. The algorithm was originally designed for data dependent acquisition (DDA) data (Cox et al., MCP 2014).
 The package also offers options for other quantitation methods including topN (using N most intense fragment ions), MeanInt (using all fragment ions), and median polish (Tukey, 1977). Finally, output from a MaxQuant experiment for DDA data can also be quantified using **iq**.
 
 
@@ -55,8 +54,8 @@ raw <- read.delim("Bruderer15-DIA-longformat.txt")
 
 selected <- raw$F.ExcludedFromQuantification == "False" & 
             raw$F.FrgLossType == "noloss" &
-            (is.na(raw$PG.Qvalue) | raw$PG.Qvalue <= 0.01) &
-            (is.na(raw$EG.Qvalue) | raw$EG.Qvalue <= 0.01)
+            (is.na(raw$PG.Qvalue) | raw$PG.Qvalue < 0.01) &
+            (is.na(raw$EG.Qvalue) | raw$EG.Qvalue < 0.01)
 
 raw <- raw[selected, c("R.Condition","PG.ProteinGroups", "EG.ModifiedSequence", "FG.Charge",
                        "F.FrgIon", "F.Charge", "F.PeakArea", "PG.Genes", "PG.ProteinNames")]
@@ -95,13 +94,13 @@ hist(log2(raw[, "F.PeakArea"]), 100, main = "Histogram of log2 intensities",
      col = "steelblue", border = "steelblue", freq = FALSE)
 ```
 
-<img src="iq1-1.png" width="95%" style="display: block; margin: auto;" />
+<img src="iq1-1.svg" alt="" width="95%" style="display: block; margin: auto;" />
 
 Here the default threshold value of zero for `log2_intensity_cutoff` is appropriate as it removes the strange distribution of low-intensity data points on the left of the figure.
 
 The default value for `sample_id` is `"R.Condition"`. However, in practice we find it convenient to use `"R.FileName"` because one does not need to prepare the condition column in Spectronaut. The `secondary_id` parameter enforces the uniqueness of the peptide species for the MaxLFQ algorithm. For example, when multiple spectral libraries are used, it is possible that a fragment comes from two or more libraries. In that case, we can use `secondary_id = c("EG.Library", "FG.Id", "FG.Charge", "F.FrgIon", "F.Charge")`. Note that one needs to export the necessary columns from Spectronaut.
 
-The second step `iq::create_protein_list` converts the long-format table to a list where each element contains the underlying data of each protein. The column names are sample names and row names fragment ions. The result can be used to visualized protein quantification for manual validation as in the next section.
+The second step `iq::create_protein_list` converts the long-format table to a list where each element contains the underlying data of each protein. The column names are sample names and row names fragment ions. The result can be used to visualize protein quantification for manual validation as in the next section.
 
 The last statement `iq::create_protein_table` quantifies the protein list one by one. 
 
@@ -125,7 +124,7 @@ The function _iq::plot\_protein()_ plots the underlying data for individual prot
 iq::plot_protein(protein_list$P00366, main = "Protein P00366", split = NULL)  
 ```
 
-<img src="iq2-1.png" width="95%" style="display: block; margin: auto;" />
+<img src="iq2-1.svg" alt="" width="95%" style="display: block; margin: auto;" />
 
 By attaching the result of the quantitation algorithm to the data table, we can demonstrate both protein quantitative values and the underlying data. Here we set the colors of fragment ions to gray.
 
@@ -138,7 +137,7 @@ iq::plot_protein(rbind(protein_list$P00366,
                  split = NULL)  
 ```
 
-<img src="iq3-1.png" width="95%" style="display: block; margin: auto;" />
+<img src="iq3-1.svg" alt="" width="95%" style="display: block; margin: auto;" />
 
 The names of constituent ions are displayed on the right when `split` is not `NULL`. We can pass additional graphical parameters to fine-tune the plot. For example, in the following we make the font size smaller by setting `cex` to 0.4 due to the restricted plotting space.
 
@@ -147,9 +146,9 @@ The names of constituent ions are displayed on the right when `split` is not `NU
 iq::plot_protein(protein_list$P00366, main = "Protein P00366", cex = 0.4)  
 ```
 
-<img src="iq4-1.png" width="95%" style="display: block; margin: auto;" />
+<img src="iq4-1.svg" alt="" width="95%" style="display: block; margin: auto;" />
 
-We can also use the protein plotting function to display different quantitative methods for evaluation. For example, here we show the quantitative values of a spike-in protein using MaxFLQ and the spike-in ground truth values (rescaled so that the means of the two are the same).
+We can also use the protein plotting function to display different quantitative methods for evaluation. For example, here we show the quantitative values of a spike-in protein using MaxLFQ and the spike-in ground truth values (rescaled so that the means of the two are the same).
 
 
 ``` r
@@ -166,7 +165,7 @@ iq::plot_protein(rbind(MaxLFQ = MaxLFQ_estimate,
                  col = c("green", "gold"))  
 ```
 
-<img src="iq5-1.png" width="95%" style="display: block; margin: auto;" />
+<img src="iq5-1.svg" alt="" width="95%" style="display: block; margin: auto;" />
 
 
 ### Extracting additional protein annotation
@@ -239,13 +238,20 @@ and check the head of the data file
 
 ``` r
 head(tab_small)
-#>       ProteinName  FullPeptideName Charge aggr_Fragment_Annotation     quant short_name
-#> 1 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1  1200.270    d00_1_1
-#> 2 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y7_1  1635.659    d00_1_1
-#> 3 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y5_1  2130.497    d00_1_1
-#> 4 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y12_1  2324.244    d00_1_1
-#> 5 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y10_1  2853.498    d00_1_1
-#> 6 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1 27360.707    d05_1_2
+#>       ProteinName  FullPeptideName Charge aggr_Fragment_Annotation
+#> 1 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1
+#> 2 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y7_1
+#> 3 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y5_1
+#> 4 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y12_1
+#> 5 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y10_1
+#> 6 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1
+#>       quant short_name
+#> 1  1200.270    d00_1_1
+#> 2  1635.659    d00_1_1
+#> 3  2130.497    d00_1_1
+#> 4  2324.244    d00_1_1
+#> 5  2853.498    d00_1_1
+#> 6 27360.707    d05_1_2
 ```
 
 Then we plot a histogram of the data to examine the data distribution
@@ -256,9 +262,9 @@ hist(log2(tab_small[, "quant"]), 100, main = "Histogram of log2 intensities",
      col = "steelblue", border = "steelblue", freq = FALSE)
 ```
 
-<img src="iq6-1.png" width="95%" style="display: block; margin: auto;" />
+<img src="iq6-1.svg" alt="" width="95%" style="display: block; margin: auto;" />
 
-Here we do not observe abnormal low-intensity values, and the default value intensity cutoff of zero is good.
+Here we do not observe abnormal low-intensity values, and the default intensity cutoff of zero is good.
 
 We follow the same procedure as for Spectronaut output for protein quantification. Nevertheless, we have to adapt the column names appropriately. Unique values in the `primary_id` column form the list of proteins to be quantified. A concatenation of the columns in `secondary_id` determines the fragment ions used for quantification. Unique values in the `sample_id` column form the list of samples. Finally, column `intensity_col` specifies the quantitative values.
 
@@ -306,7 +312,7 @@ colnames(dda_log2) <- sprintf("C%02d", 1:24)
 
 ### Building up a protein list from the MaxQuant evidence file
 
-We first perform median normalization on intensities in the _evidence.txt_ file. Subsequently, we produce a list of protein as in the case of Spectronaut output in a variable _p\_list_.
+We first perform median normalization on intensities in the _evidence.txt_ file. Subsequently, we produce a list of proteins as in the case of Spectronaut output in a variable _p\_list_.
 
 
 ``` r
@@ -340,6 +346,7 @@ for (i in 1:nrow(dda)) {
     m <- matrix(NA, nrow = length(unique(b$rn)), ncol = length(ex), 
                 dimnames = list(unique(b$rn), ex))
   
+    # a protein without intensities is left out
     if (nrow(b) > 0) {
         for (j in 1:nrow(b)) {
             rn <- as.character(b$rn[j])
@@ -351,8 +358,6 @@ for (i in 1:nrow(dda)) {
             }
         }
         p_list[[rownames(dda)[i]]] <- log2(m)
-    } else {
-        p_list[[rownames(dda)[i]]] <- NA
     }
 }
 ```
@@ -374,7 +379,7 @@ iq::plot_protein(tmp,
                  col = c(rep("gray", nrow(p_list$A1L0T0)), "green", "blue"))  
 ```
 
-<img src="iq7-1.png" width="95%" style="display: block; margin: auto;" />
+<img src="iq7-1.svg" alt="" width="95%" style="display: block; margin: auto;" />
 
 Finally, we write out the result of MaxLFQ quantification to a text file. 
 
@@ -418,12 +423,11 @@ For the topN and MeanInt method, the aggregating operation can be carried out in
 
 ## References
 
-1. Bruderer R, Bernhardt OM, Gandhi T, et al. (2015) Extending the limits of quantitative proteome profiling with data-independent acquisition and application to
-acetaminophen-treated three-dimensional liver microtissues. _Mol Cell Proteomics_ 14(5):1400–1410.
-1. Cox J, Hein MY, Luber CA, et al. (2014) Accurate proteome-wide label-free quantification
-by delayed normalization and maximal peptide ratio extraction, termed MaxLFQ. _Mol Cell Proteomics_ 13(9):2513–2526.
-1. Cox J and Mann M (2008) MaxQuant enables high peptide identification rates, individualized p.p.b.-range mass accuracies and proteome-wide protein quantification. _Nat Biotechnol_ 26, pp 1367-72.
-1. Pham TV, Henneman AA, Jimenez CR (2020) iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics. _Bioinformatics_ 36(8):2611-2613.
-1. Rost HL, Rosenberger G, Navarro P, et al. (2014). OpenSWATH enables automated, targeted analysis of data-independent acquisition MS data. Nat. Biotechnol. 32, 219–223.
-1. Schubert OT, Ludwig C, Kogadeeva M, et al. (2015) Absolute proteome composition and dynamics during dormancy and resuscitation of mycobacterium tuberculosis. _Cell Host Microbe_ 18(1):96-108.
+1. Bruderer R, Bernhardt OM, Gandhi T, Miladinovic SM, Cheng LY, Messner S, Ehrenberger T, Zanotelli V, Butscheid Y, Escher C, Vitek O, Rinner O, Reiter L. Extending the limits of quantitative proteome profiling with data-independent acquisition and application to acetaminophen-treated three-dimensional liver microtissues. _Mol Cell Proteomics_. 2015 May;14(5):1400-10. 
+1. Cox J, Hein MY, Luber CA, Paron I, Nagaraj N, Mann M. Accurate proteome-wide label-free quantification by delayed normalization and maximal peptide ratio extraction, termed MaxLFQ. _Mol Cell Proteomics_. 2014 Sep;13(9):2513-26.
+1. Cox J, Mann M. MaxQuant enables high peptide identification rates, individualized p.p.b.-range mass accuracies and proteome-wide protein quantification. _Nat Biotechnol_. 2008 Dec;26(12):1367-72.
+1. Pham TV, Henneman AA, Jimenez CR. iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics. _Bioinformatics_. 2020 Apr 15;36(8):2611-2613.
+1. Pham TV, Tran CTM, Henneman AA, Pham LHC, Le DG, Can AH, Bui PHL, Piersma SR, Jimenez CR. Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics. _Journal of Proteome Research_. 2026 Feb 6;25(2):1198-1203.
+1. Rost HL, Rosenberger G, Navarro P, Gillet L, Miladinovic SM, Schubert OT, Wolski W, Collins BC, Malmstrom J, Malmstrom L, Aebersold R. OpenSWATH enables automated, targeted analysis of data-independent acquisition MS data. _Nat Biotechnol_. 2014 Mar;32(3):219-23. 
+1. Schubert OT, Ludwig C, Kogadeeva M, Zimmermann M, Rosenberger G, Gengenbacher M, Gillet LC, Collins BC, Rost HL, Kaufmann SH, Sauer U, Aebersold R. Absolute proteome composition and dynamics during dormancy and resuscitation of mycobacterium tuberculosis. _Cell Host Microbe_. 2015 Jul 8;18(1):96-108.
 1. Tukey JW. (1977) _Exploratory Data Analysis_, Reading Massachusetts: Addison-Wesley.

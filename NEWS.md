@@ -1,3 +1,12 @@
+## Version 2.2.0
+
+- process: one call for the whole pipeline, from a text file, a parquet file or a data frame
+- long_format_to_iq_format reads data stream
+- process_iq_format quantifies in parallel batches.
+- no build dependency: Rcpp and RcppEigen are no longer needed. "maxlfq" and fast_MaxLFQ use the maxlfq_bit solver.
+- Improve error checking
+- new function read_fasta_file: reads a FASTA file into a named list of sequences (named by UniProt accession by default), e.g. for rfasta in process
+
 ## Version 2.1.0
 
 - fix a bug in calculation of Huber weights
