@@ -11,7 +11,7 @@
  quantification algorithms in mass spectrometry-based proteomics.
  Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
  
- Software version: 2.2.0
+ Software version: 2.3.0
  
 #########################################################################*/
 
@@ -30,7 +30,9 @@
 #include <omp.h>
 #endif
 
-static constexpr double EPS = 1e-10;  // Convergence threshold for iterative solver
+// The conjugate-gradient solver stops when the squared residual is below EPS times the squared
+// norm of the right-hand side.
+static constexpr double EPS = 1e-20;
 
 
 void Ax(double* A, int M, int N, double* x, double* out) {
@@ -152,9 +154,13 @@ void solve(double* X, int M, int N,
 
     double rsold = std::inner_product(r, r + n1, r, 0.0);
 
-    int n_rounds = max_iter < 0 ? n1 : max_iter;
+    const double threshold = EPS * std::inner_product(b, b + n1, b, 0.0);
 
-    for (int iter = 0; iter < n_rounds && rsold > EPS; iter++) {
+    // In exact arithmetic n1 iterations are enough. With rounding errors, weakly connected
+    // samples (e.g. a chain) need more: the residuals lose their orthogonality.
+    int n_rounds = max_iter < 0 ? 10 * n1 : max_iter;
+
+    for (int iter = 0; iter < n_rounds && rsold > threshold; iter++) {
 
         if (AtA == NULL) {
             Ax(X, M, N, p, Ap);  // Matrix-vector multiply: Ap = A*p
@@ -170,7 +176,9 @@ void solve(double* X, int M, int N,
         
         double pAp = std::inner_product(p, p + n1, Ap, 0.0);
 
-        if (std::abs(pAp) < EPS) {
+        // pAp can be negative (the system with the constraint row is not positive definite);
+        // only a division by zero is avoided
+        if (pAp == 0.0 || !std::isfinite(pAp)) {
             break;
         }
 
@@ -185,7 +193,7 @@ void solve(double* X, int M, int N,
         double rsnew = std::inner_product(r, r + n1, r, 0.0);
 
         // Convergence check
-        if (rsnew < EPS) break;
+        if (rsnew <= threshold) break;
 
         double beta = rsnew / rsold; 
 

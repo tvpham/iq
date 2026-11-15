@@ -12,7 +12,7 @@
  quantification algorithms in mass spectrometry-based proteomics.
  Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
  
- Software version: 2.2.0
+ Software version: 2.3.0
  
 #########################################################################*/
 
@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 struct weighted_sample_t {
 
@@ -387,6 +388,52 @@ inline bool filter_number(const char* s, double* v) {
     }
     *v = x;
     return true;
+}
+
+// An intensity given as text, the same rule for both readers (iq.cpp and stream.cpp):
+// missing if empty, "NaN", "NA" or one of na_strings; otherwise the whole text must be a number
+// (spaces around it are allowed). Returns 1 for a number (in *v), 0 for a missing value and -1
+// for text that is not a number (e.g. "1000;2000", "12abc", "n/a").
+inline const char* text_of(const char* s) {
+    return s;
+}
+inline const char* text_of(const std::string& s) {
+    return s.c_str();
+}
+template <typename S>
+inline int intensity_value(const char* s, const std::vector<S>& na_strings, double* v) {
+    if (*s == 0 || strcmp(s, "NaN") == 0 || strcmp(s, "NA") == 0) {
+        return 0;
+    }
+    for (const auto& na : na_strings) {
+        if (strcmp(s, text_of(na)) == 0) {
+            return 0;
+        }
+    }
+    char* end = NULL;
+    double x = strtod(s, &end);
+    if (end == s) {
+        return -1;
+    }
+    while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n') {
+        end++;
+    }
+    if (*end != 0) {
+        return -1;
+    }
+    *v = x;
+    return 1;
+}
+
+// The error for an intensity that is not a number; where: e.g. "Line 12" or "Row 12"
+inline std::string intensity_error(const std::string& where, const char* value, const std::string& column, bool split) {
+    std::string m = where + ": the intensity \"" + value + "\" in column " + column + " is not a number.";
+    if (!split && strchr(value, ';')) {
+        m += "\nFor several values in one cell, set intensity_col_sep";
+    } else if (!strpbrk(value, "0123456789")) {
+        m += "\nTo read it as a missing value, add it to na_string";
+    }
+    return m;
 }
 
 #endif // __UTILS_H

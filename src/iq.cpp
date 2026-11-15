@@ -15,7 +15,7 @@
  protein abundances from ion quantification in DIA-MS-based proteomics,
  Bioinformatics 2020 Apr 15;36(8):2611-2613.
 
- Software version: 2.2.0
+ Software version: 2.3.0
 
 #########################################################################*/
 
@@ -424,7 +424,7 @@ void process(const vector<string> &argv,
 
     const char* intensity_col_sep = 0;
     vector<const char *> col_quant_ids;   // as col_quants: one column (split), or one per intensity column
-    const char* na_string = 0;
+    vector<const char *> na_strings;     // values read as missing, in addition to empty, NaN and NA
 
     if (argv.size() < 1) {
         /*
@@ -565,8 +565,13 @@ void process(const vector<string> &argv,
                 col_quant_ids.push_back(argv[p++].c_str());
             }
         } else if (argv[p].compare("--na_string") == 0) {
-            na_string = argv[++p].c_str();
             p++;
+            while (p < (argv.size() - 1)) {
+                if (strncmp(argv[p].c_str(), "--", 2) == 0) {
+                    break;
+                }
+                na_strings.push_back(argv[p++].c_str());
+            }
         } else {
             throw runtime_error((string("Do not know what to do with ") + argv[p]).c_str());
         }
@@ -726,8 +731,12 @@ void process(const vector<string> &argv,
             Rprintf("Quant column separator:\n    %s\n", intensity_col_sep);
         }
 
-        if (na_string) {
-            Rprintf("Quant column NA string (in addition to NaN):\n    %s\n", na_string);
+        if (!na_strings.empty()) {
+            Rprintf("Quant column NA string(s) (in addition to empty, NaN and NA):\n   ");
+            for (auto str : na_strings) {
+                Rprintf(" \"%s\"", str);
+            }
+            Rprintf("\n");
         }
 
         if (has_quant_ids) {
@@ -1036,8 +1045,9 @@ void process(const vector<string> &argv,
             }
 
             size_t line_mismatched = SIZE_MAX;  // first bad line number, SIZE_MAX if none
+            size_t value_mismatched = SIZE_MAX;  // first line with an intensity that is not a number
 
-            #pragma omp parallel for schedule(static) reduction(min:line_mismatched)
+            #pragma omp parallel for schedule(static) reduction(min:line_mismatched) reduction(min:value_mismatched)
             for (size_t n = 0; n < _line->size(); n++) {
 
                 (*quant_vec)[n].clear();
@@ -1135,7 +1145,12 @@ void process(const vector<string> &argv,
 
                                 for (auto& s : (*quant_vec)[n]) {
 
-                                    if (*s != 0 && strcmp(s, "NaN") != 0 && (!na_string || strcmp(s, na_string) != 0)) {
+                                    double v;
+                                    int status = intensity_value(s, na_strings, &v);
+                                    if (status < 0) {  // not a number: an error after the loop
+                                        value_mismatched = min(value_mismatched, line_no + n + 1);
+                                    }
+                                    if (status == 1) {
                                         (*quant_vec_is_na)[n].push_back(true);
                                         (*quant_vec_is_na_n)[n]++;
                                     }
@@ -1160,6 +1175,21 @@ void process(const vector<string> &argv,
             if (line_mismatched != SIZE_MAX) { // no exception in parallel regions
                 cleanup();
                 throw runtime_error(("Line " + to_string(line_mismatched) + ": the number of columns does not match header or quant values and ids.\n").c_str());
+            }
+
+            if (value_mismatched != SIZE_MAX) {  // the message names the value, before the buffers are freed
+                size_t n = value_mismatched - line_no - 1;
+                string message;
+                for (size_t k = 0; k < (*quant_vec)[n].size() && message.empty(); k++) {
+                    double v;
+                    const char* s = (*quant_vec)[n][k];
+                    if (intensity_value(s, na_strings, &v) < 0) {
+                        message = intensity_error("Line " + to_string(value_mismatched), s,
+                                                  intensity_col_sep ? col_quants[0] : col_quants[k], intensity_col_sep != 0);
+                    }
+                }
+                cleanup();
+                throw runtime_error(message);
             }
 
             line_no += _line->size();

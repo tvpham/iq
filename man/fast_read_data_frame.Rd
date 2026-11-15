@@ -35,7 +35,7 @@ fast_read_data_frame(input_data,
 \item{filter_double_greater}{A named vector of numbers. Rows with a value greater than the given value, or a missing value, are kept.}
 \item{intensity_col_sep}{A separator character when a single text intensity column contains multiple values. It is not used for numeric intensity columns.}
 \item{intensity_col_id}{Identities of multiple quantitative values: one column per intensity column, or a single text column split by \code{intensity_col_sep}.}
-\item{na_string}{The value considered as NA, in addition to NA and NaN. For numeric intensity columns, a number (default 0).}
+\item{na_string}{One or more intensity values read as missing, in addition to empty values, \code{NA} and \code{NaN} (default \code{"0"}). For numeric intensity columns, they are compared as numbers. Any other intensity given as text must be a number; otherwise the reading stops with an error naming the value (e.g. \code{"1000;2000"} without \code{intensity_col_sep}, or a placeholder such as \code{"n/a"}, which can be added to \code{na_string}).}
 \item{verbose}{A logical value. The default \code{TRUE} prints progress and summary messages; \code{FALSE} prints none of them. Warnings and errors are always shown.}
 }
 \details{

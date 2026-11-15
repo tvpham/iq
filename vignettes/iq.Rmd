@@ -1,7 +1,7 @@
 ---
 title: "Relative protein quantification for DIA-MS-based proteomics"
 author: "Thang V Pham"
-date: "2026-11-05" 
+date: "2026-11-14" 
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{iq: an R package to estimate relative protein abundances from ion quantification in DIA-MS-based proteomics}
@@ -238,20 +238,20 @@ and check the head of the data file
 
 ``` r
 head(tab_small)
-#>       ProteinName  FullPeptideName Charge aggr_Fragment_Annotation
-#> 1 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1
-#> 2 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y7_1
-#> 3 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y5_1
-#> 4 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y12_1
-#> 5 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y10_1
-#> 6 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1
-#>       quant short_name
-#> 1  1200.270    d00_1_1
-#> 2  1635.659    d00_1_1
-#> 3  2130.497    d00_1_1
-#> 4  2324.244    d00_1_1
-#> 5  2853.498    d00_1_1
-#> 6 27360.707    d05_1_2
+#>       ProteinName  FullPeptideName Charge aggr_Fragment_Annotation     quant
+#> 1 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1  1200.270
+#> 2 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y7_1  1635.659
+#> 3 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y5_1  2130.497
+#> 4 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y12_1  2324.244
+#> 5 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                    y10_1  2853.498
+#> 6 1/Rv0244c_fadE5 ALGHGEFSDVDVDTAR      2                     y9_1 27360.707
+#>   short_name
+#> 1    d00_1_1
+#> 2    d00_1_1
+#> 3    d00_1_1
+#> 4    d00_1_1
+#> 5    d00_1_1
+#> 6    d05_1_2
 ```
 
 Then we plot a histogram of the data to examine the data distribution

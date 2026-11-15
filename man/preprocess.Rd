@@ -38,7 +38,7 @@ A long-format table with a primary column of protein identification, secondary c
 \item{pdf_height}{Height of the pdf output in inches.}
 \item{intensity_col_sep}{A separator character when entries in the intensity column contain multiple values.}
 \item{intensity_col_id}{The column for identities of multiple quantitative values.}
-\item{na_string}{The value considered as NA. For a numeric intensity column, a number (default 0).}
+\item{na_string}{One or more values considered as NA (default \code{"0"}). For a numeric intensity column, they are compared as numbers.}
 \item{show_boxplot}{A logical value. The default \code{TRUE} value is to create boxplots of fragment intensities for each sample.}
 \item{verbose}{A logical value. The default \code{TRUE} prints progress messages; \code{FALSE} prints none of them. Warnings and errors are always shown.}
 }

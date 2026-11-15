@@ -1,7 +1,7 @@
 ---
 title: "Fast MaxLFQ"
 author: "Thang V Pham"
-date: "2026-11-06" 
+date: "2026-11-14" 
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Fast MaxLFQ}
@@ -137,22 +137,23 @@ result_faster <- iq::fast_MaxLFQ(norm_data)
 #> Using 15 threads...
 #> 0%
 #> 5%
-#> 12%
-#> 18%
-#> 23%
-#> 29%
-#> 34%
-#> 40%
-#> 46%
-#> 51%
-#> 56%
-#> 61%
-#> 67%
-#> 72%
-#> 78%
-#> 83%
-#> 88%
-#> 93%
+#> 10%
+#> 15%
+#> 21%
+#> 26%
+#> 31%
+#> 36%
+#> 42%
+#> 47%
+#> 53%
+#> 58%
+#> 64%
+#> 70%
+#> 75%
+#> 80%
+#> 86%
+#> 91%
+#> 96%
 #> Completed.
 ```
 
@@ -161,7 +162,7 @@ The results of the R implementation `result` and C++ implementation `result_fast
 
 ``` r
 cat("Max difference =", max(abs(result_faster$estimate - result$estimate), na.rm = TRUE), "\n")
-#> Max difference = 1.187839e-07
+#> Max difference = 3.965539e-11
 
 cat("Identical NAs =", identical(is.na(result_faster$estimate), is.na(result$estimate)), "\n")
 #> Identical NAs = TRUE
@@ -224,7 +225,7 @@ system.time({
 #> 100%
 #> Completed.
 #>    user  system elapsed 
-#>  188.67    4.98  194.34
+#>  188.16    5.23  193.55
 
 system.time({
     result_faster <- iq::fast_MaxLFQ(norm_data)
@@ -234,25 +235,24 @@ system.time({
 #> 0%
 #> 6%
 #> 12%
-#> 17%
+#> 18%
 #> 23%
-#> 28%
-#> 33%
-#> 39%
-#> 44%
-#> 49%
+#> 29%
+#> 35%
+#> 40%
+#> 45%
+#> 50%
 #> 55%
-#> 60%
-#> 65%
-#> 71%
-#> 77%
-#> 82%
-#> 87%
-#> 92%
-#> 97%
+#> 63%
+#> 68%
+#> 73%
+#> 78%
+#> 84%
+#> 89%
+#> 95%
 #> Completed.
 #>    user  system elapsed 
-#>    2.76    0.07    1.75
+#>    2.79    0.06    1.77
 ```
 
 ## An efficient data structure and data loading
@@ -273,7 +273,7 @@ iq_dat <- iq::fast_read("DIA-report-long-format.txt",
                         filter_string_equal = c("F.ExcludedFromQuantification" = "False"),
                         annotation_col = annotation_columns)
 #> 
-#> Command: --sample R.FileName --primary PG.ProteinGroups --secondary EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType --quant F.PeakArea --annotation PG.Genes PG.ProteinNames --filter-string-equal F.ExcludedFromQuantification False --filter-double-less PG.Qvalue 0.01 --filter-double-less EG.Qvalue 0.01 DIA-report-long-format.txt 
+#> Command: --sample R.FileName --primary PG.ProteinGroups --secondary EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType --quant F.PeakArea --annotation PG.Genes PG.ProteinNames --filter-string-equal F.ExcludedFromQuantification False --filter-double-less PG.Qvalue 0.01 --filter-double-less EG.Qvalue 0.01 --na_string 0 DIA-report-long-format.txt 
 #> 
 #> Sample column:
 #>     R.FileName
@@ -290,6 +290,8 @@ iq_dat <- iq::fast_read("DIA-report-long-format.txt",
 #> Double less filter(s):
 #>     PG.Qvalue < 0.010000
 #>     EG.Qvalue < 0.010000
+#> Quant column NA string(s) (in addition to empty, NaN and NA):
+#>     "0"
 #> 
 #> Using 4 threads ...
 #> 20 samples read
@@ -314,23 +316,22 @@ result_fastest <- iq::fast_MaxLFQ(iq_norm_data,
 #> 0%
 #> 5%
 #> 10%
-#> 15%
+#> 16%
 #> 21%
-#> 26%
-#> 31%
-#> 36%
-#> 41%
-#> 46%
-#> 52%
-#> 57%
-#> 63%
-#> 68%
-#> 73%
-#> 79%
-#> 84%
-#> 89%
-#> 94%
-#> 99%
+#> 27%
+#> 32%
+#> 37%
+#> 45%
+#> 50%
+#> 56%
+#> 61%
+#> 67%
+#> 72%
+#> 77%
+#> 82%
+#> 87%
+#> 93%
+#> 98%
 #> Completed.
 ```
 
@@ -339,7 +340,7 @@ The result of the optimized pipeline `result_fastest` should be the same as that
 
 ``` r
 cat("Max difference =", max(abs(result_fastest$estimate - result$estimate), na.rm = TRUE), "\n")
-#> Max difference = 1.187839e-07
+#> Max difference = 3.965539e-11
 
 cat("Identical NAs =", identical(is.na(result_fastest$estimate), is.na(result$estimate)), "\n")
 #> Identical NAs = TRUE
@@ -445,7 +446,7 @@ system.time({
 #> 100%
 #> Completed.
 #>    user  system elapsed 
-#>  271.59    8.68  280.66
+#>  272.81    9.23  282.42
 
 system.time({
     iq_dat <- iq::fast_read("DIA-report-long-format.txt",
@@ -461,7 +462,7 @@ system.time({
                                       col_names = iq_dat$sample)
 })
 #> 
-#> Command: --sample R.FileName --primary PG.ProteinGroups --secondary EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType --quant F.PeakArea --annotation PG.Genes PG.ProteinNames --filter-string-equal F.ExcludedFromQuantification False --filter-double-less PG.Qvalue 0.01 --filter-double-less EG.Qvalue 0.01 DIA-report-long-format.txt 
+#> Command: --sample R.FileName --primary PG.ProteinGroups --secondary EG.Library FG.Id FG.Charge F.FrgIon F.Charge F.FrgLossType --quant F.PeakArea --annotation PG.Genes PG.ProteinNames --filter-string-equal F.ExcludedFromQuantification False --filter-double-less PG.Qvalue 0.01 --filter-double-less EG.Qvalue 0.01 --na_string 0 DIA-report-long-format.txt 
 #> 
 #> Sample column:
 #>     R.FileName
@@ -478,6 +479,8 @@ system.time({
 #> Double less filter(s):
 #>     PG.Qvalue < 0.010000
 #>     EG.Qvalue < 0.010000
+#> Quant column NA string(s) (in addition to empty, NaN and NA):
+#>     "0"
 #> 
 #> Using 4 threads ...
 #> 20 samples read
@@ -494,28 +497,27 @@ system.time({
 #> nrow = 3369557, # proteins = 3554, # samples = 24
 #> Using 15 threads...
 #> 0%
-#> 5%
-#> 10%
-#> 15%
-#> 20%
-#> 25%
-#> 30%
-#> 35%
+#> 6%
+#> 11%
+#> 16%
+#> 21%
+#> 26%
+#> 31%
+#> 36%
 #> 41%
-#> 46%
-#> 52%
-#> 57%
-#> 62%
-#> 67%
-#> 72%
-#> 78%
-#> 83%
-#> 88%
-#> 93%
-#> 99%
+#> 47%
+#> 53%
+#> 58%
+#> 63%
+#> 69%
+#> 74%
+#> 79%
+#> 84%
+#> 89%
+#> 94%
 #> Completed.
 #>    user  system elapsed 
-#>  127.86    0.89   34.61
+#>  250.08    0.78   65.33
 ```
 
 

@@ -1,7 +1,7 @@
 Package: iq
 Type: Package
 Title: Protein Quantification in Mass Spectrometry-Based Proteomics
-Version: 2.2.0
+Version: 2.3.0
 Authors@R: c(person(c("Thang", "V."), "Pham", email = "t.pham@amsterdamumc.nl",
                     role = c("aut", "cre", "cph"),
                     comment = c(ORCID = "0000-0003-0333-2492")),
@@ -12,8 +12,8 @@ Maintainer: Thang V. Pham <t.pham@amsterdamumc.nl>
 Description: An implementation of the MaxLFQ algorithm by
     Cox et al. (2014) <doi:10.1074/mcp.M113.031591> using least-squares analysis in a comprehensive
     pipeline for processing proteomics data in data-independent acquisition mode
-    (Pham et al. 2020 <doi:10.1093/bioinformatics/btz961>, and a new algorithm using the conjugate gradient method
-    Pham et al. 2026 <doi:10.1021/acs.jproteome.5c01038>).
+    (Pham et al. 2020) <doi:10.1093/bioinformatics/btz961>, and a new algorithm using the conjugate gradient method
+    with an efficient bit-based matrix representation called 'maxlfq-bit' (Pham et al. 2026) <doi:10.1021/acs.jproteome.5c01038>.
     It offers additional options for protein quantification using
     the N most intense fragment ions, using all fragment ions, 
     the median polish algorithm by Tukey (1977, ISBN:0201076160), 

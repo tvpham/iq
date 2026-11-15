@@ -10,7 +10,7 @@
 # protein abundances from ion quantification in DIA-MS-based proteomics, 
 # Bioinformatics 2020 Apr 15;36(8):2611-2613.
 #
-# Software version: 2.2.0
+# Software version: 2.3.0
 #
 #########################################################################
 
@@ -93,7 +93,7 @@ preprocess <- function(quant_table,
         cc <- 1
         for (r in 1:nrow(quant_table)) {
             a <- v[[r]]
-            a[a == na_string] <- NA
+            a[a %in% na_string] <- NA
 
             cc_end <- cc + length(a) - 1
 

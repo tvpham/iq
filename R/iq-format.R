@@ -11,7 +11,7 @@
 # quantification algorithms in mass spectrometry-based proteomics.
 # Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
 #
-# Software version: 2.2.0
+# Software version: 2.3.0
 #
 #########################################################################
 
@@ -92,6 +92,7 @@ process <- function(input_data,
     .check_id_columns(sample_id, primary_id, secondary_id)
     .check_filters(filter_string_equal, filter_string_not_equal, filter_double_less, filter_double_greater)
     .check_intensity_columns(intensity_col, intensity_col_sep, intensity_col_id)
+    .check_na_string(na_string)
     .check_cutoff(log2_intensity_cutoff)
 
     .check_fragment_options(peptide_extractor, rfasta)
@@ -378,6 +379,7 @@ long_format_to_iq_format <- function(input_filename,
     .check_id_columns(sample_id, primary_id, secondary_id)
     .check_filters(filter_string_equal, filter_string_not_equal, filter_double_less, filter_double_greater)
     .check_intensity_columns(intensity_col, intensity_col_sep, intensity_col_id)
+    .check_na_string(na_string)
 
     median_normalization <- .median_normalization(normalization)
 
@@ -1273,6 +1275,16 @@ iq_format_to_protein_list <- function(iqformat_folder, proteins, normalization =
          filter_double_greater = named(filter_double_greater, "filter_double_greater", TRUE))
 }
 
+# na_string: values read as missing (text or numbers), or NULL; a value starting with "--" would
+# be read as an option by the text reader
+.check_na_string <- function(na_string) {
+    if (!is.null(na_string) &&
+        (!(is.character(na_string) || is.numeric(na_string)) || anyNA(na_string) ||
+         any(startsWith(as.character(na_string), "--")))) {
+        stop("na_string must be one or more values (text or numbers) read as missing, or NULL.")
+    }
+}
+
 # log2_intensity_cutoff: one number, or NULL for no cut-off (a text value would be compared with
 # the log2 intensities as text, e.g. 6 > "12")
 .check_cutoff <- function(log2_intensity_cutoff) {
@@ -1338,6 +1350,7 @@ iq_format_to_protein_list <- function(iqformat_folder, proteins, normalization =
                             intensity_col_sep, intensity_col_id, na_string) {
 
     .check_id_columns(sample_id, primary_id, secondary_id)
+    .check_na_string(na_string)
     filters <- .check_filters(filter_string_equal, filter_string_not_equal,
                               filter_double_less, filter_double_greater)
 

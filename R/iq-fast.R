@@ -15,7 +15,7 @@
 # protein abundances from ion quantification in DIA-MS-based proteomics,
 # Bioinformatics 2020 Apr 15;36(8):2611-2613.
 #
-# Software version: 2.2.0
+# Software version: 2.3.0
 #
 #########################################################################
 
@@ -574,9 +574,10 @@ process_long_format <- function(input_data,
         cmd <- paste(cmd, "--intensity_col_sep", intensity_col_sep, sep = sep)
     }
 
-    # na_string: for values split from one column, or one value per column (several columns)
-    if ((!is.null(intensity_col_sep) || length(intensity_col) > 1) && !is.null(na_string)) {
-        cmd <- paste(cmd, "--na_string", na_string, sep = sep)
+    # na_string: the values read as missing, in addition to empty, NaN and NA
+    .check_na_string(na_string)
+    if (length(na_string) > 0) {
+        cmd <- paste(cmd, "--na_string", paste(na_string, collapse = sep), sep = sep)
     }
 
     if (!is.null(intensity_col_id)) {

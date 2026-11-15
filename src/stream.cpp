@@ -15,7 +15,8 @@
  Filters and missing values follow the text-file reader (iq_filter):
   - filter_double_less / greater keep x < value / x > value, and keep rows whose
     filter value is missing (NA, NaN, empty, or text that is not a number)
-  - a quantitative value is missing if it is NA, NaN, empty, or equal to na_string
+  - a quantitative value is missing if it is NA, NaN, empty, or equal to one of na_string; other
+   text that is not a number is an error
 
  Citation:
  
@@ -23,7 +24,7 @@
  Boosting the speed and accuracy of protein quantification algorithms in mass spectrometry-based proteomics.
  Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
 
- Software version: 2.2.0
+ Software version: 2.3.0
 
 #########################################################################*/
 
@@ -190,10 +191,8 @@ struct stream_state {
 
     bool has_sep = false;
     char sep = ';';
-    bool has_na_string = false;
-    string na_string;
-    bool na_string_is_number = false;
-    double na_number = 0.0;
+    vector<string> na_strings;          // values read as missing, in addition to empty, NaN and NA
+    vector<double> na_numbers;          // those that are numbers, for numeric columns
 
     // results
     vector<int> protein_index;
@@ -339,15 +338,12 @@ stream_state* create_state(SEXP options) {
         st->sep = sep[0][0];
     }
 
-    vector<string> na = get_strings(options, "na_string", false);
-    if (!na.empty()) {
-        st->has_na_string = true;
-        st->na_string = na[0];
+    st->na_strings = get_strings(options, "na_string", false);
+    for (auto& na : st->na_strings) {
         char* end = NULL;
-        double v = strtod(na[0].c_str(), &end);
-        if (!na[0].empty() && end && *end == 0) {
-            st->na_string_is_number = true;
-            st->na_number = v;
+        double v = strtod(na.c_str(), &end);
+        if (!na.empty() && end && *end == 0) {
+            st->na_numbers.push_back(v);
         }
     }
 
@@ -466,9 +462,14 @@ void add_batch_rows(stream_state* st, SEXP batch) {
     string ion_prefix, key, display;
     char num[32];
 
-    // is a text value missing? (same rule as the text-file reader)
-    auto text_missing = [&](const char* t) {
-        return *t == 0 || strcmp(t, "NaN") == 0 || (st->has_na_string && st->na_string == t);
+    // an intensity given as text: a number, missing, or an error (the rule of the text-file reader)
+    auto text_value = [&](const char* t, const string& column, bool split_value) {
+        double v;
+        int status = intensity_value(t, st->na_strings, &v);
+        if (status < 0) {
+            throw runtime_error(intensity_error("Row " + std::to_string(st->n_rows), t, column, split_value));
+        }
+        return status == 1 ? v : NAN;
     };
 
     for (R_xlen_t r = 0; r < nrow; r++) {
@@ -526,7 +527,7 @@ void add_batch_rows(stream_state* st, SEXP batch) {
             }
             for (size_t k = 0; k < pieces.size(); k++) {
                 const char* t = pieces[k].c_str();
-                values.push_back(text_missing(t) ? NAN : atof(t));
+                values.push_back(text_value(t, st->col_quant[0], true));
                 if (quant_id_cols.empty()) {
                     snprintf(num, sizeof(num), "%d", (int)(k + 1));
                     suffix.emplace_back(num);
@@ -539,10 +540,10 @@ void add_batch_rows(stream_state* st, SEXP batch) {
                 double v;
                 if (quant_cols[k].is_text()) {
                     const char* t = quant_cols[k].text(r);
-                    v = text_missing(t) ? NAN : atof(t);
+                    v = text_value(t, st->col_quant[k], false);
                 } else {
                     v = quant_cols[k].number(r);
-                    if (std::isnan(v) || (st->na_string_is_number && v == st->na_number)) {
+                    if (std::isnan(v) || std::find(st->na_numbers.begin(), st->na_numbers.end(), v) != st->na_numbers.end()) {
                         v = NAN;
                     }
                 }

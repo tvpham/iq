@@ -47,7 +47,7 @@ process(input_data,
   \item{filter_double_greater}{A named vector of numbers. Rows with a value greater than the given value, or a missing value, are kept.}
   \item{intensity_col_sep}{A separator character when a single text intensity column contains multiple values (e.g. \code{";"} for the fragment intensities in \code{Fragment.Quant.Corrected} of DIA-NN 1.x), or \code{NULL} (the default) for one value per column.}
   \item{intensity_col_id}{Identities of multiple intensity values: one column per intensity column, or a single text column split by \code{intensity_col_sep}. If \code{NULL}, the values are numbered 1, 2, 3, ...}
-  \item{na_string}{An intensity value considered missing, in addition to NA, NaN and empty values. For a text file, it is used with \code{intensity_col_sep} or several intensity columns.}
+  \item{na_string}{One or more intensity values read as missing, in addition to empty values, \code{NA} and \code{NaN} (default \code{"0"}). For numeric intensity columns, they are compared as numbers. Any other intensity given as text must be a number; otherwise the reading stops with an error naming the value (e.g. \code{"1000;2000"} without \code{intensity_col_sep}, or a placeholder such as \code{"n/a"}, which can be added to \code{na_string}).}
   \item{normalization}{\code{"median"} for median normalization (see \code{\link{fast_preprocess}}) or \code{"none"}.}
   \item{log2_intensity_cutoff}{Values with a log2 intensity not above this cutoff are removed; the default 0 removes intensities of 1 or less. \code{NULL} for no cutoff. See \code{\link{fast_preprocess}}.}
   \item{pdf_out}{A PDF file for quality control plots, or \code{NULL} for none. See \code{\link{fast_preprocess}}.}

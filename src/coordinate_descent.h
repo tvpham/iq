@@ -11,7 +11,7 @@
  quantification algorithms in mass spectrometry-based proteomics.
  Journal of Proteome Research 2026 Feb 6; 25(2):1198-1203.
  
- Software version: 2.2.0
+ Software version: 2.3.0
  
 #########################################################################*/
  
