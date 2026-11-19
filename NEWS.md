@@ -1,10 +1,16 @@
+## Version 2.3.0
+
+- input checking: strict intensity column parsing
+- na_string accepts several values
+- improve maxlfq_bit numerical convergence
+
 ## Version 2.2.0
 
 - process: one call for the whole pipeline, from a text file, a parquet file or a data frame
 - long_format_to_iq_format reads data stream
-- process_iq_format quantifies in parallel batches.
+- process_iq_format quantifies in parallel batches
 - no build dependency: Rcpp and RcppEigen are no longer needed. "maxlfq" and fast_MaxLFQ use the maxlfq_bit solver.
-- Improve error checking
+- improve error checking
 - new function read_fasta_file: reads a FASTA file into a named list of sequences (named by UniProt accession by default), e.g. for rfasta in process
 
 ## Version 2.1.0
@@ -51,15 +57,11 @@
 ## Version 1.9.6
 
 - add support for multiple quantitative values per table cell, for examples fragment intensities separated by ';' in DIA-NN output.
-
 - add oneliner function 'process_long_format' for end-to-end processing with default values for DIA-NN.
-
 - add oneliner function 'process_wide_format' for end-to-end processing to collapse multiple rows with same id, such as multiple entries for a gene.
 
 - fix NOTE due to Rcpp
-
 - fix memory reallocation problem
-
 - better exception handling
 
 ## Version 1.9.3
@@ -69,7 +71,6 @@
 ## Version 1.9.1
 
 - Revise code (change order of header files) to support OpenMP in clang 13.0.0.
-
 - fix typo: medpolish to median_polish
 
 ## Version 1.9
@@ -101,7 +102,6 @@
 ## Ver 1.3
 
 - Filter out NaN values in the quantitative column in the function `preprocess()`.
-
 - Update the median normalization step in the function `preprocess()`.
 
 ## Ver 1.2
